@@ -1,0 +1,30 @@
+> Task :order-service:compileJava UP-TO-DATE
+> Task :order-service:test
+
+OrderServiceImplTest > placeOrderPublishesEvent() FAILED
+    org.opentest4j.AssertionFailedError: expected: <CREATED> but was: <null>
+        at app//org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+        at app//org.junit.jupiter.api.AssertEquals.assertEquals(AssertEquals.java:182)
+        at app//com.shop.order.service.OrderServiceImplTest.placeOrderPublishesEvent(OrderServiceImplTest.java:41)
+
+OrderServiceImplTest > cancelUnknownOrder() FAILED
+    java.lang.IllegalArgumentException: No order 99
+        at app//com.shop.order.service.OrderServiceImpl.lambda$cancelOrder$0(OrderServiceImpl.java:48)
+        at java.base/java.util.Optional.orElseThrow(Optional.java:403)
+        at app//com.shop.order.service.OrderServiceImpl.cancelOrder(OrderServiceImpl.java:47)
+        at app//com.shop.order.service.OrderServiceImplTest.cancelUnknownOrder(OrderServiceImplTest.java:55)
+
+5 tests completed, 2 failed
+
+> Task :order-service:test FAILED
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':order-service:test'.
+> There were failing tests. See the report at: file:///work/shop/order-service/build/reports/tests/test/index.html
+
+* Try:
+> Run with --scan to get full insights.
+
+BUILD FAILED in 14s

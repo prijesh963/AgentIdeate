@@ -71,6 +71,7 @@ This pays twice:
 | `graph` | Resolve names across files and repos; beans, routes, implementations, calls; `Integrations` (config, messaging, data); `ReverseIndex` (callers, injectors, entry points, tests) |
 | `workspace` | Decide which repos a request is about; reuse the graph until something changes |
 | `tools` | The tools, the answer budget, the savings footer, the ledger |
+| `session` | Conversation threads and the store that continues or starts them |
 | `mcp` | Hand-written MCP stdio server (initialize, tools, ping, roots) |
 
 Built with Gradle (Kotlin DSL) on Java 21, shipped as one self-contained jar.
@@ -149,6 +150,13 @@ The MCP server cannot see Copilot's chat, so it keeps its own memory per topic:
 - **Control.** The agent can pass a thread id; the developer can say "new topic".
 - Threads expire after a time window or on a branch change; cached facts are re-checked against
   the index when files change.
+
+As built (M3): relatedness is the overlap of the files the answer cites with the thread's files
+(shared over the smaller set) plus half the overlap of question words, against threads on the same
+branch active within 6 hours; 0.3 or more continues. Each answer is computed twice when threaded:
+once to learn the files it cites (which picks the thread), once to render it against that thread.
+Remembered lines and call trees carry the files they came from, so an edit anywhere beneath them
+brings them back in full.
 
 ### 2. Plan, with a feedback loop until approval
 
@@ -239,7 +247,7 @@ plan and goes through the same gate.
 |---|---|---|
 | **M1** | Gradle skeleton, MCP stdio server with roots, sample microservices workspace, incremental Java index, graph (beans, routes, injection, interface dispatch, Feign hops), `repo_overview`, `locate`, `endpoint_flow`, savings footer and ledger | **done** |
 | **M2** | Spring config reading (YAML subset, properties) with placeholder resolution; Kafka/RabbitMQ/JMS and Spring Cloud Stream (functional) producer-consumer map across services; build-file dependencies; entity → table/collection, repositories, migrations, datasources; reverse index; `messaging_map`, `data_map`, `impact_of`; Kafka hops in `endpoint_flow` | **done** |
-| M3 | Workflow 1 threads (stateful Q&A, delta answers), `slice_for_task`, build-log compression | |
+| **M3** | Workflow 1 threads (relatedness by cited files and words, same branch, 6 h window; no repeats inside a thread; invalidation by file hash, including whole call trees; `thread_recall`), `slice_for_task`, `compress_log` (logs and JUnit XML) | **done** |
 | M4 | Benchmark harness on the sample, ledger report, release workflow (jar + checksum + SBOM), SECURITY fact sheet finalized | |
 | M5 | Workflow 2: plan contract, validation, decision ledger, approval page | |
 | M6 | Workflow 3: implement, verify, rollback, audit | |

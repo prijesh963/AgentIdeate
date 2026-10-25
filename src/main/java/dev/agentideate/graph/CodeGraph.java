@@ -102,6 +102,7 @@ public final class CodeGraph {
     private final Map<TypeNode, String> beanKinds = new IdentityHashMap<>();
     private Integrations integrations;
     private ReverseIndex reverse;
+    private Map<String, Integer> fileNameCounts;
 
     public CodeGraph(Workspace workspace, Collection<SourceFile> files) {
         this.workspace = workspace;
@@ -136,6 +137,18 @@ public final class CodeGraph {
         return workspace;
     }
 
+    /** How many workspace files have each file name ({@code OrderService.java -> 1}). */
+    public synchronized Map<String, Integer> fileNameCounts() {
+        if (fileNameCounts == null) {
+            Map<String, Integer> counts = new HashMap<>();
+            for (SourceFile f : files) {
+                counts.merge(f.path().substring(f.path().lastIndexOf('/') + 1), 1, Integer::sum);
+            }
+            fileNameCounts = counts;
+        }
+        return fileNameCounts;
+    }
+
     /** Messaging, datastores and config for this graph, computed on first use. */
     public synchronized Integrations integrations() {
         if (integrations == null) {
@@ -158,6 +171,10 @@ public final class CodeGraph {
 
     public List<TypeNode> types() {
         return types;
+    }
+
+    public List<TypeNode> byFqn(String fqn) {
+        return byFqn.getOrDefault(fqn, List.of());
     }
 
     public List<TypeNode> bySimpleName(String name) {

@@ -39,6 +39,11 @@ final class RepoOverviewTool implements Tool {
     }
 
     @Override
+    public boolean threaded() {
+        return false; // a workspace-wide map, not part of any one topic
+    }
+
+    @Override
     public ObjectNode inputSchema() {
         return ToolRegistry.objectSchema();
     }

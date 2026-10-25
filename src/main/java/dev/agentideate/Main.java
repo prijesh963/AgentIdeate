@@ -31,6 +31,9 @@ public final class Main {
               java -jar agentideate.jar messaging [channel] [--repo <folder>]...
               java -jar agentideate.jar data [name] [--repo <folder>]...
               java -jar agentideate.jar impact <Class | Class#method | topic | table> [--repo <folder>]...
+              java -jar agentideate.jar slice <task words...> [--repo <folder>]...
+              java -jar agentideate.jar log [log file] [--repo <folder>]...     (no file: JUnit XML reports)
+              java -jar agentideate.jar recall [topic | thread id] [--repo <folder>]...
               java -jar agentideate.jar --version | help
 
             Without --repo the open project (from Copilot) or the current folder is used.
@@ -118,6 +121,26 @@ public final class Main {
                 }
                 args.put("target", positional.get(1));
                 return print(registry.call("impact_of", args), stdout, stderr);
+            }
+            case "slice" -> {
+                if (positional.size() < 2) {
+                    stderr.println("usage: slice <task words...>");
+                    return 2;
+                }
+                args.put("task", String.join(" ", positional.subList(1, positional.size())));
+                return print(registry.call("slice_for_task", args), stdout, stderr);
+            }
+            case "log" -> {
+                if (positional.size() > 1) {
+                    args.put("path", positional.get(1));
+                }
+                return print(registry.call("compress_log", args), stdout, stderr);
+            }
+            case "recall" -> {
+                if (positional.size() > 1) {
+                    args.put("topic", String.join(" ", positional.subList(1, positional.size())));
+                }
+                return print(registry.call("thread_recall", args), stdout, stderr);
             }
             default -> {
                 stderr.println("Unknown command '" + command + "'.");

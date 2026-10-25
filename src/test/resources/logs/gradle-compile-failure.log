@@ -1,0 +1,18 @@
+> Task :order-service:compileJava FAILED
+/work/shop/order-service/src/main/java/com/shop/order/service/OrderServiceImpl.java:38: error: cannot find symbol
+        order.setTotal(applyDiscount(total(price.amount(), request.quantity())));
+                       ^
+  symbol:   method applyDiscount(BigDecimal)
+  location: class OrderServiceImpl
+/work/shop/order-service/src/main/java/com/shop/order/web/OrderController.java:12: error: package com.shop.order.discount does not exist
+import com.shop.order.discount.DiscountPolicy;
+                              ^
+2 errors
+
+FAILURE: Build failed with an exception.
+
+* What went wrong:
+Execution failed for task ':order-service:compileJava'.
+> Compilation failed; see the compiler error output for details.
+
+BUILD FAILED in 3s

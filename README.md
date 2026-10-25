@@ -67,7 +67,8 @@ macOS     /Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java
 ```
 
 **3. Restart IntelliJ.** In Copilot Chat, switch to **Agent** mode; the tools icon lists
-`repo_overview`, `locate`, `endpoint_flow`, `messaging_map`, `data_map` and `impact_of`.
+`repo_overview`, `locate`, `endpoint_flow`, `messaging_map`, `data_map`, `impact_of`,
+`slice_for_task`, `compress_log` and `thread_recall`.
 
 That's it. Open your project as usual and ask Copilot about it. The first question indexes the
 project (seconds for a small repo, a minute or two for a large one); after that only changed files
@@ -97,6 +98,19 @@ passes all of them. Or pin them in `mcp.json`:
 | `messaging_map` | "Who consumes `order.created`?" | every topic/queue with its producers and consumers across services (`KafkaTemplate`, `@KafkaListener`, RabbitMQ, JMS, Spring Cloud Stream functions and `StreamBridge`); topic names resolved from constants and `application.yml` |
 | `data_map` | "Which tables does order-service use?" | per service: datasource, entity → table/collection, repositories, Flyway/Liquibase migrations, direct `JdbcTemplate`/`MongoTemplate` use |
 | `impact_of` | "What breaks if I change `OrderEntity`?" | callers, injectors, the routes and Kafka consumers it is reached from, messages it sends, tables and migrations, tests, across services |
+| `slice_for_task` | "Add a discount when placing an order" | the classes the task is about and their collaborators as signature skeletons with line numbers, entry points, and the source of only the key methods: the context for writing the change, in one call |
+| `compress_log` | "Why did the build fail?" | a Gradle/Maven/test/Spring Boot failure reduced to errors with `file:line`, from a log file, pasted text, or the JUnit XML reports |
+| `thread_recall` | "Continue the invoice approval work" | an earlier topic's questions and central files, to pick it up in a new chat |
+
+### It remembers the conversation
+
+Answers belong to threads. A question related to the last few (sharing files or words, on the same
+branch, within 6 hours) continues that thread, and an unrelated one starts a new thread; the footer
+says which (`thread t1 continued` / `thread t2 new`). Inside a thread nothing is repeated: a file
+already cited is shown by its file name, a hit or caller already listed is left out (and the next one
+shown instead), a call tree already expanded is only named. Anything from a file that changed since
+is given in full again. If the agent no longer has the earlier answers (a new chat), it asks with
+`thread: "new"`, or recalls the topic with `thread_recall`.
 
 The same tools work from a terminal, which is handy for checking an answer:
 
@@ -107,6 +121,9 @@ java -jar agentideate.jar flow /api/orders POST --repo /work/shop
 java -jar agentideate.jar messaging --repo /work/shop
 java -jar agentideate.jar data orders --repo /work/shop
 java -jar agentideate.jar impact OrderServiceImpl#placeOrder --repo /work/shop
+java -jar agentideate.jar slice add a discount when placing an order --repo /work/shop
+java -jar agentideate.jar log build/test.log --repo /work/shop
+java -jar agentideate.jar recall
 ```
 
 Gaps are listed in [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md). Where agentideate is
