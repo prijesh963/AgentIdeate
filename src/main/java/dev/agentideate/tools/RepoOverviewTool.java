@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.agentideate.graph.CodeGraph;
 import dev.agentideate.graph.CodeGraph.ResolvedEndpoint;
 import dev.agentideate.graph.CodeGraph.TypeNode;
+import dev.agentideate.graph.Integrations;
 import dev.agentideate.index.SourceFile;
 import dev.agentideate.workspace.WorkspaceService;
 
@@ -11,7 +12,9 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.TreeSet;
 
 /**
  * A map of the workspace: services, their routes grouped by controller, their beans, outbound
@@ -31,8 +34,8 @@ final class RepoOverviewTool implements Tool {
 
     @Override
     public String description() {
-        return "Map of the Java/Spring workspace: services, REST routes by controller, beans, Feign calls, "
-                + "config files. Call first, before opening files to learn the structure.";
+        return "Map of the Java/Spring workspace: services, REST routes by controller, beans, datastores, "
+                + "Kafka topics, Feign calls, config. Call first, before opening files to learn the structure.";
     }
 
     @Override
@@ -68,6 +71,8 @@ final class RepoOverviewTool implements Tool {
             out.line("  app " + app.name() + "  " + out.ref(app.file(), app.decl().line()));
             routes(routesByModule.getOrDefault(module, List.of()), out);
             beans(graph, module, out);
+            data(graph, module, out);
+            messaging(graph, module, out);
             for (ResolvedEndpoint c : clientsByModule.getOrDefault(module, List.of())) {
                 out.line("  calls out: " + c.owner().name() + " -> " + feignTarget(c.owner()) + "  "
                         + c.httpMethod() + " " + c.path());
@@ -94,7 +99,7 @@ final class RepoOverviewTool implements Tool {
                 .limit(3).forEach(f -> failed.add(ws.display(f) + " (" + f.parseError() + ")"));
         out.blank();
         if (failed.isEmpty()) {
-            out.line("Coverage: all " + javaFiles + " Java files parsed. Kafka topics and datastore mapping are not indexed yet.");
+            out.line("Coverage: all " + javaFiles + " Java files parsed. Detail: endpoint_flow, messaging_map, data_map, impact_of.");
         } else {
             out.line("Coverage: " + snapshot.stats().parseErrors() + " Java files could not be parsed and are absent from answers, e.g. "
                     + String.join("; ", failed));
@@ -145,6 +150,36 @@ final class RepoOverviewTool implements Tool {
             }
         });
         out.line("  beans: " + (parts.isEmpty() ? "none" : String.join(" · ", parts)));
+    }
+
+    private static void data(CodeGraph graph, String module, Answer out) {
+        Integrations integ = graph.integrations();
+        List<String> units = new ArrayList<>();
+        for (Integrations.Entity e : integ.entities()) {
+            if (graph.moduleKey(e.type().file()).equals(module)) {
+                units.add(e.name());
+            }
+        }
+        List<Integrations.Store> stores = integ.stores().getOrDefault(module, List.of());
+        if (units.isEmpty() && stores.stream().noneMatch(s -> s.role().equals("datastore"))) {
+            return;
+        }
+        out.line("  data: " + DataMapTool.storesLine(stores) + (units.isEmpty() ? "" : " · " + String.join(", ", units)));
+    }
+
+    private static void messaging(CodeGraph graph, String module, Answer out) {
+        Set<String> produces = new TreeSet<>();
+        Set<String> consumes = new TreeSet<>();
+        for (Integrations.Message m : graph.integrations().messages()) {
+            if (graph.moduleKey(m.owner().file()).equals(module)) {
+                (m.producer() ? produces : consumes).add(m.system() + " " + m.channel());
+            }
+        }
+        if (produces.isEmpty() && consumes.isEmpty()) {
+            return;
+        }
+        out.line("  messaging: produces " + (produces.isEmpty() ? "-" : String.join(", ", produces))
+                + " · consumes " + (consumes.isEmpty() ? "-" : String.join(", ", consumes)));
     }
 
     private static void configs(List<SourceFile> files, Answer out) {

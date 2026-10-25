@@ -104,7 +104,7 @@ class ToolsTest {
     void everyAnswerCarriesTheSavingsFooterAndIsLedgered() throws Exception {
         String t = call("endpoint_flow", "path", "/api/orders/{id}", "method", "GET").text();
         assertTrue(t.lines().reduce((a, b) -> b).orElseThrow()
-                .matches("-- agentideate: from \\d+ source files \\(~[\\d.k]+ tokens to open\\) -> ~[\\d.k]+ tokens here; index 27 Java files.*"), t);
+                .matches("-- agentideate: from \\d+ source files \\(~[\\d.k]+ tokens to open\\) -> ~[\\d.k]+ tokens here; index 29 Java files.*"), t);
         try (Stream<Path> s = Files.walk(home)) {
             Path ledger = s.filter(p -> p.getFileName().toString().equals("ledger.jsonl")).findFirst().orElseThrow();
             String row = Files.readAllLines(ledger).get(0);
@@ -123,7 +123,7 @@ class ToolsTest {
 
     @Test
     void unknownToolAndMissingRepoAreErrorsWithAWayForward(@TempDir Path elsewhere) {
-        assertTrue(call("nope").text().startsWith("Unknown tool 'nope'. Available: repo_overview, locate, endpoint_flow"));
+        assertTrue(call("nope").text().startsWith("Unknown tool 'nope'. Available: repo_overview, locate, endpoint_flow, messaging_map, data_map, impact_of"));
         ToolRegistry r = ToolRegistry.standard(new dev.agentideate.workspace.WorkspaceService(
                 new dev.agentideate.AppHome(home), List.of(), elsewhere));
         ToolRegistry.Outcome o = r.call("repo_overview", JSON.createObjectNode());
@@ -146,5 +146,112 @@ class ToolsTest {
         ToolRegistry r = TestSupport.registry(home, tmp);
         String t = r.call("repo_overview", JSON.createObjectNode().put("repo", TestSupport.shop().toString())).text();
         assertTrue(t.contains("3 Spring Boot services"), t);
+    }
+
+    @Test
+    void overviewShowsDataAndMessagingPerService() {
+        String t = call("repo_overview").text();
+        assertTrue(t.contains("  data: postgresql db \"orders\" · orders"), t);
+        assertTrue(t.contains("  data: mongodb db \"inventory\" · stock"), t);
+        assertTrue(t.contains("  messaging: produces kafka order.cancelled, kafka order.created · consumes -"), t);
+        assertTrue(t.contains("  messaging: produces - · consumes kafka order.cancelled, kafka order.created"), t);
+    }
+
+    @Test
+    void messagingMapPairsProducersWithConsumers() {
+        String t = call("messaging_map").text();
+        assertTrue(t.startsWith("kafka order.cancelled\n  produced by  order-service  OrderEventPublisher#publishCancelled"), t);
+        assertTrue(t.contains("  consumed by  inventory-service (group inventory)  OrderCancelledListener#onOrderCancelled"), t);
+        String filtered = call("messaging_map", "channel", "created").text();
+        assertFalse(filtered.contains("order.cancelled"), filtered);
+        assertTrue(call("messaging_map", "channel", "payments").text().startsWith("Not found: no channel containing \"payments\""));
+    }
+
+    @Test
+    void dataMapListsEntitiesReposMigrationsAndDirectAccess() {
+        String t = call("data_map").text();
+        assertTrue(t.contains("order-service  postgresql db \"orders\""), t);
+        assertTrue(t.contains("  table orders <- OrderEntity"), t);
+        assertTrue(t.contains("    repo OrderRepository"), t);
+        assertTrue(t.contains("    migrations: order-service/src/main/resources/db/migration/V1__create_orders.sql, "
+                + "order-service/src/main/resources/db/migration/V2__add_order_status.sql"), t);
+        assertTrue(t.contains("  collection stock <- StockItem"), t);
+        assertTrue(t.contains("    migrations: none found for this table"), "prices has no migration: " + t);
+        assertTrue(t.contains("  direct JdbcTemplate in PriceHistoryDao"), t);
+        String one = call("data_map", "name", "stock").text();
+        assertFalse(one.contains("orders"), one);
+        assertTrue(call("data_map", "name", "invoice").text().startsWith("Not found: no entity, table or collection named like \"invoice\""));
+    }
+
+    @Test
+    void flowFollowsKafkaIntoTheConsumingService() {
+        String t = call("endpoint_flow", "path", "/api/orders/{id}/cancel").text();
+        assertTrue(t.contains("-> kafka order.cancelled  order-service/src/main/java/com/shop/order/messaging/OrderEventPublisher.java:22"), t);
+        assertTrue(t.contains("=> consumed in inventory-service (group inventory):"), t);
+        assertTrue(t.contains("OrderCancelledListener#onOrderCancelled"), t);
+        assertTrue(t.contains("InventoryService#release"), t);
+    }
+
+    @Test
+    void impactOfAMethod() {
+        String t = call("impact_of", "target", "OrderServiceImpl#placeOrder").text();
+        assertTrue(t.startsWith("Impact of OrderServiceImpl#placeOrder  (order-service)"), t);
+        assertTrue(t.contains("Called by (1):\n  OrderController#placeOrder"), t);
+        assertTrue(t.contains("Reached from (1):\n  route POST /api/orders  (order-service)"), t);
+        assertTrue(t.contains("  kafka order.created -> inventory-service OrderCreatedListener#onOrderCreated"), t);
+        assertTrue(t.contains("Tests (1):\n  OrderServiceImplTest"), t);
+        assertTrue(call("impact_of", "target", "OrderService.placeOrder").text().contains("Called by (1)"));
+    }
+
+    @Test
+    void impactOfAnInterfaceAndOfAConsumerCrossesServices() {
+        String iface = call("impact_of", "target", "OrderService").text();
+        assertTrue(iface.contains("interface · implemented by OrderServiceImpl"), iface);
+        assertTrue(iface.contains("Injected into (1):\n  OrderController (constructor)"), iface);
+        assertTrue(iface.contains("Tests (1):\n  OrderServiceImplTest"), "tests of the implementation count: " + iface);
+
+        String inv = call("impact_of", "target", "InventoryService#reserve").text();
+        assertTrue(inv.contains("  kafka order.created consumed by OrderCreatedListener#onOrderCreated  (inventory-service)"), inv);
+        assertTrue(inv.contains("  route POST /api/stock/{sku}/reserve  (inventory-service)"), inv);
+    }
+
+    @Test
+    void impactOfATopicAndOfATable() {
+        String topic = call("impact_of", "target", "order.created").text();
+        assertTrue(topic.startsWith("Impact of kafka order.created"), topic);
+        assertTrue(topic.contains("Produced when (1):\n  route POST /api/orders  (order-service)"), topic);
+        assertTrue(topic.contains("Consumers (1):\n  inventory-service (group inventory)  OrderCreatedListener#onOrderCreated"), topic);
+
+        String table = call("impact_of", "target", "orders").text();
+        assertTrue(table.startsWith("orders is the table of OrderEntity."), table);
+        assertTrue(table.contains("jpa entity"), table);
+        assertTrue(table.contains("  migration order-service/src/main/resources/db/migration/V1__create_orders.sql"), table);
+    }
+
+    @Test
+    void impactSaysWhatItCannotFindAndNeverGuessesBetweenNamesakes(@TempDir Path tmp) throws Exception {
+        assertTrue(call("impact_of", "target", "InvoiceService").text().startsWith("Not found: no class, method, topic/queue or table named \"InvoiceService\""));
+        ToolRegistry.Outcome noMethod = call("impact_of", "target", "OrderServiceImpl#approve");
+        assertTrue(noMethod.error());
+        assertTrue(noMethod.text().contains("has no method 'approve'"), noMethod.text());
+
+        for (String svc : List.of("a", "b")) {
+            Path dir = tmp.resolve(svc + "/src/main/java/" + svc);
+            Files.createDirectories(dir);
+            Files.writeString(dir.resolve("Client.java"), "package " + svc + "; class Client {}");
+        }
+        String t = TestSupport.registry(home, tmp).call("impact_of", JSON.createObjectNode().put("target", "Client")).text();
+        assertTrue(t.startsWith("\"Client\" is ambiguous: 2 types"), t);
+        assertTrue(t.contains("  a.Client") && t.contains("  b.Client"), t);
+        assertTrue(TestSupport.registry(home, tmp).call("impact_of", JSON.createObjectNode().put("target", "a.Client")).text()
+                .startsWith("Impact of Client"));
+    }
+
+    @Test
+    void locateFindsTopicsAndTables() {
+        String t = call("locate", "query", "order cancelled", "kind", "topic").text();
+        assertTrue(t.contains("topic  kafka order.cancelled"), t);
+        String tables = call("locate", "query", "stock", "kind", "table").text();
+        assertTrue(tables.contains("table  collection stock <- StockItem"), tables);
     }
 }

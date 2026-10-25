@@ -8,3 +8,11 @@ spring:
     bootstrap-servers: localhost:9092
     consumer:
       group-id: inventory
+
+app:
+  topics:
+    # the cancelled-order topic is configured, not hard-coded
+    order-cancelled: order.cancelled
+  warehouses:
+  - north
+  - south

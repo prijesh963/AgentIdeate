@@ -15,6 +15,11 @@ source code to answer structural questions about the open project.
   argument of a tool call): `.java` sources and configuration/build files (`.yml`, `.yaml`,
   `.properties`, `.gradle`, `.kts`, `.xml`, `.sql`, `.avsc`, `.proto`).
 - It skips `.git`, `build`, `target`, `out`, `node_modules`, IDE folders and similar.
+- Spring config files (`application*.yml`/`.properties`) are read to resolve topic names and
+  identify datastores. Before anything is cached, values of secret-looking keys (password, secret,
+  token, credential, api/private/access key) are replaced with `<redacted>` and `user:password@`
+  in URLs is masked. Answers show topic and queue names, table names and a datasource's kind and
+  database name, never hosts, users or passwords.
 - It does not follow symbolic links out of the project.
 
 ## What it writes

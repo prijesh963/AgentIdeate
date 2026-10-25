@@ -28,6 +28,9 @@ public final class Main {
               java -jar agentideate.jar overview [--repo <folder>]...
               java -jar agentideate.jar locate <query> [--repo <folder>]...
               java -jar agentideate.jar flow <path> [GET|POST|...] [--repo <folder>]...
+              java -jar agentideate.jar messaging [channel] [--repo <folder>]...
+              java -jar agentideate.jar data [name] [--repo <folder>]...
+              java -jar agentideate.jar impact <Class | Class#method | topic | table> [--repo <folder>]...
               java -jar agentideate.jar --version | help
 
             Without --repo the open project (from Copilot) or the current folder is used.
@@ -95,6 +98,26 @@ public final class Main {
                     args.put("method", positional.get(2));
                 }
                 return print(registry.call("endpoint_flow", args), stdout, stderr);
+            }
+            case "messaging" -> {
+                if (positional.size() > 1) {
+                    args.put("channel", positional.get(1));
+                }
+                return print(registry.call("messaging_map", args), stdout, stderr);
+            }
+            case "data" -> {
+                if (positional.size() > 1) {
+                    args.put("name", positional.get(1));
+                }
+                return print(registry.call("data_map", args), stdout, stderr);
+            }
+            case "impact" -> {
+                if (positional.size() < 2) {
+                    stderr.println("usage: impact <Class | Class#method | topic | table>");
+                    return 2;
+                }
+                args.put("target", positional.get(1));
+                return print(registry.call("impact_of", args), stdout, stderr);
             }
             default -> {
                 stderr.println("Unknown command '" + command + "'.");

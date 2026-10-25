@@ -23,4 +23,10 @@ public class InventoryService {
         item.setAvailable(item.getAvailable() - quantity);
         return stockRepository.save(item);
     }
+
+    public StockItem release(String sku, int quantity) {
+        StockItem item = stockFor(sku);
+        item.setAvailable(item.getAvailable() + quantity);
+        return stockRepository.save(item);
+    }
 }

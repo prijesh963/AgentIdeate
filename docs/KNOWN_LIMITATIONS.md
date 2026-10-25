@@ -17,15 +17,23 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
    defined in a superclass is not shown.
 5. **Calls inside lambdas are attributed to the enclosing method,** which is usually what is wanted
    but loses the lambda's own scope (a lambda parameter shadowing a field is not modelled).
-6. **Non-Java files are listed, not read.** `application.yml`, `.properties`, SQL migrations and
-   build files are indexed by path only (found by `locate`, shown in the overview). Their contents
-   (datasource URLs, topic names in config) are not used yet: planned for M2.
-7. **Files over 2 MB are listed but not parsed** (generated sources, mostly). They are counted as
+6. **Only Spring config and migrations are read among non-Java files.** `application*.yml|yaml|
+   properties` and `bootstrap*` become flat keys; `.sql` files and Liquibase XML changelogs give the
+   tables they create or alter. Build files and other XML are listed by path only.
+7. **The YAML reader is a subset.** Nested maps, scalars, quotes, comments, lists (both indent
+   styles), lists of maps, flow lists and block scalars. Anchors/aliases (`&x`, `*x`), merge keys and
+   flow maps (`{a: 1}`) are not interpreted. With several `---` documents (profiles) the first value
+   of a key wins; profile-specific files (`application-dev.yml`) never override the base file,
+   because no active profile is known.
+8. **Config comes from the repo only.** Values set through environment variables, a config server,
+   Vault or Kubernetes ConfigMaps are invisible, so a placeholder they fill stays unresolved and is
+   shown as such.
+9. **Files over 2 MB are listed but not parsed** (generated sources, mostly). They are counted as
    unparseable in the coverage line.
-8. **Constants:** a route path or attribute given as a `static final String` constant is resolved,
+10. **Constants:** a route path or attribute given as a `static final String` constant is resolved,
    including concatenation (`API + "/orders"`) and static imports. A value computed at runtime, or a
-   Spring property placeholder (`${pricing.url}`), is kept as written; an unresolved constant shows
-   as `${NAME}` instead of being read as literal path text.
+   Spring property placeholder that no config file in the module defines, is kept as written; an
+   unresolved constant shows as `${NAME}` instead of being read as literal path text.
 
 ## Spring semantics
 
@@ -35,12 +43,55 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
 2. **Interface dispatch lists every implementation.** `@Primary`, `@Qualifier` and profile
    conditions are not used to pick one; a call on an interface with two implementations shows both.
 3. **Only the first class-level `@RequestMapping` path is used** when several are given.
-4. **Kafka, MongoDB and Postgres are not mapped yet.** A `KafkaTemplate.send` or `@KafkaListener`
-   is not yet a hop in `endpoint_flow`, and entities are not linked to their tables or collections.
-   M2 adds these.
-5. **Feign hops are matched by HTTP method and path template only,** against routes in a different
+4. **Feign hops are matched by HTTP method and path template only,** against routes in a different
    module. The Feign client's `name` is shown but not yet used to choose the target service when two
    services expose the same path.
+
+## Messaging
+
+1. **Recognized producers:** `send`/`sendDefault`/`convertAndSend`/`convertSendAndReceive`/
+   `sendAndReceive` on `KafkaTemplate`, `ReactiveKafkaProducerTemplate`, `KafkaOperations`,
+   `RabbitTemplate`, `AmqpTemplate`, `RabbitOperations`, `RabbitMessagingTemplate`, `JmsTemplate`,
+   `JmsMessagingTemplate`, `JmsOperations`, called on a field, parameter or local of that type.
+   Not recognized: Spring Cloud Stream (`StreamBridge`, functional bindings), the plain Kafka client
+   (`KafkaProducer`), Camel routes, Spring Integration flows, and calls through a wrapper class the
+   index cannot see into.
+2. **Recognized consumers:** `@KafkaListener` (`topics`, `topicPattern`; class-level with
+   `@KafkaHandler`), `@RabbitListener(queues)`, `@JmsListener(destination)`. Not recognized:
+   `@RabbitListener(bindings = @QueueBinding(...))`, programmatic listener containers.
+3. **A topic name that is a runtime value** (a method parameter, a computed string) is shown as
+   `<name>`, listed under "Channel not known statically", and matched to nothing.
+   `kafkaTemplate.send(new ProducerRecord<>(...))` is listed the same way.
+4. **RabbitMQ is matched by routing key = queue name.** Exchange bindings are not read, so a
+   producer whose routing key differs from the queue name it ends up in is not linked to it.
+5. **Brokers are not compared.** Two services using the same topic name on different Kafka
+   clusters are still shown as producer and consumer of one channel.
+
+## Data
+
+1. **Entities:** `@Entity` (table from `@Table`, else Spring Boot's default snake_case naming),
+   `@Document` (collection from `collection`/`value`, else the decapitalized class name), Spring Data
+   JDBC/R2DBC `@Table`, `@RedisHash`. A custom `PhysicalNamingStrategy` or
+   `spring.jpa.hibernate.naming.*` setting is not applied.
+2. **Repositories** are linked to their entity through the first type argument of the Spring Data
+   interface they extend directly (or of an indexed intermediate repository interface).
+3. **SQL inside strings is not read.** A `JdbcTemplate`/`MongoTemplate`/`EntityManager` user is
+   listed as "direct" access, but which tables its queries touch is not known, and `@Query` texts
+   are not parsed.
+4. **Migrations** are matched to entities by table name within the same repository root. Flyway
+   Java migrations and Liquibase YAML/JSON changelogs are not read.
+5. **Datasource details are limited to kind and database name** on purpose: hosts, users and
+   passwords in URLs are never shown in answers.
+
+## Impact analysis
+
+1. **Callers are found through the call graph,** so the limits under Indexing apply: a call through
+   a chained expression, an overload, or reflection is not seen. Treat "Called by (0)" as "no
+   call the index can see", and confirm with a text search before deleting code.
+2. **Entry points walk callers up to 8 levels.** Deeper chains are cut off.
+3. **Tests** are found by reference (a field, call receiver or import) or by the `<Name>Test`,
+   `<Name>Tests`, `<Name>IT` naming convention. Tests that only reach the target indirectly, through
+   a Spring context, are not listed.
 
 ## Workspace
 

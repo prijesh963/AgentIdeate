@@ -127,6 +127,44 @@ class JavaFileParserTest {
     }
 
     @Test
+    void callArgumentsAreRenderedSoChannelNamesCanBeRead() {
+        TypeDecl t = only("""
+                class P {
+                  @Value("${app.topic}") private String configured;
+                  private KafkaTemplate<String, Object> kafka;
+                  void run(String topic, Object payload) {
+                    kafka.send("literal", payload);
+                    kafka.send(Topics.ORDERS, payload);
+                    kafka.send(LOCAL_CONST, payload);
+                    kafka.send(configured, payload);
+                    kafka.send(this.configured, payload);
+                    kafka.send(topic, payload);
+                    kafka.send("pre." + Topics.SUFFIX, payload);
+                    kafka.send(build(), payload);
+                  }
+                }
+                """);
+        MethodDecl run = t.methods().stream().filter(m -> m.name().equals("run")).findFirst().orElseThrow();
+        List<String> first = run.calls().stream().filter(c -> c.method().equals("send")).map(c -> c.args().get(0)).toList();
+        assertEquals(List.of("literal", "${Topics.ORDERS}", "${LOCAL_CONST}", "${app.topic}", "${app.topic}", "<topic>",
+                "pre.${Topics.SUFFIX}", "?"), first);
+        assertEquals(2, run.calls().get(0).args().size());
+    }
+
+    @Test
+    void genericSupertypeArgumentsAreKept() {
+        TypeDecl t = only("interface OrderRepository extends JpaRepository<OrderEntity, Long>, Custom {}");
+        assertEquals(List.of("OrderEntity", "Long"), t.superTypeArgs().get("JpaRepository"));
+        assertNull(t.superTypeArgs().get("Custom"));
+    }
+
+    @Test
+    void persistenceContextIsAnInjection() {
+        TypeDecl t = only("@Repository class R { @PersistenceContext private EntityManager em; }");
+        assertEquals(List.of("em:EntityManager:field"), inj(t));
+    }
+
+    @Test
     void constantsKeepLiteralsAndConcatenations() {
         TypeDecl t = only("""
                 class Paths { static final String API = "/api"; static final String ORDERS = API + "/orders";

@@ -27,7 +27,7 @@ import java.util.Map;
 public final class WorkspaceIndex {
 
     /** Bumped whenever the shape of {@link SourceFile} changes, so an old cache is rebuilt, not misread. */
-    static final int CACHE_VERSION = 1;
+    static final int CACHE_VERSION = 2;
 
     /** Files above this size are listed but not parsed: generated sources, mostly. */
     static final long MAX_PARSE_BYTES = 2 * 1024 * 1024;
@@ -96,7 +96,8 @@ public final class WorkspaceIndex {
                 String hash = sha256(bytes);
                 if (cached != null && hash.equals(cached.sha256()) && cached.module().equals(module)) {
                     next.put(key, new SourceFile(cached.root(), cached.path(), module, sf.size(), sf.mtime(),
-                            hash, cached.packageName(), cached.imports(), cached.types(), cached.parseError()));
+                            hash, cached.packageName(), cached.imports(), cached.types(), cached.parseError(),
+                            cached.properties(), cached.tables()));
                     continue;
                 }
                 next.put(key, build(root.name(), sf, module, hash, bytes));
@@ -142,17 +143,22 @@ public final class WorkspaceIndex {
     }
 
     private SourceFile build(String rootName, RepoScanner.ScannedFile sf, String module, String hash, byte[] bytes) {
-        if (!sf.relative().endsWith(".java")) {
-            return new SourceFile(rootName, sf.relative(), module, sf.size(), sf.mtime(), hash, "",
-                    List.of(), List.of(), null);
-        }
+        String rel = sf.relative();
         if (sf.size() > MAX_PARSE_BYTES) {
-            return new SourceFile(rootName, sf.relative(), module, sf.size(), sf.mtime(), hash, "",
-                    List.of(), List.of(), "skipped: larger than " + (MAX_PARSE_BYTES / 1024) + " KB");
+            return new SourceFile(rootName, rel, module, sf.size(), sf.mtime(), hash, "", List.of(), List.of(),
+                    rel.endsWith(".java") ? "skipped: larger than " + (MAX_PARSE_BYTES / 1024) + " KB" : null,
+                    Map.of(), List.of());
         }
-        JavaFileParser.Parsed parsed = parser.parse(new String(bytes, StandardCharsets.UTF_8));
-        return new SourceFile(rootName, sf.relative(), module, sf.size(), sf.mtime(), hash,
-                parsed.packageName(), parsed.imports(), parsed.types(), parsed.error());
+        String text = new String(bytes, StandardCharsets.UTF_8);
+        if (!rel.endsWith(".java")) {
+            Map<String, String> props = ConfigFileParser.isSpringConfig(rel) ? ConfigFileParser.properties(rel, text) : Map.of();
+            List<String> tables = ConfigFileParser.isMigration(rel) ? ConfigFileParser.tables(rel, text) : List.of();
+            return new SourceFile(rootName, rel, module, sf.size(), sf.mtime(), hash, "", List.of(), List.of(), null,
+                    props, tables);
+        }
+        JavaFileParser.Parsed parsed = parser.parse(text);
+        return new SourceFile(rootName, rel, module, sf.size(), sf.mtime(), hash,
+                parsed.packageName(), parsed.imports(), parsed.types(), parsed.error(), Map.of(), List.of());
     }
 
     private void loadCache() {
