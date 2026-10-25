@@ -137,6 +137,8 @@ public final class PlanService {
             plan.approvedVersion = null;
             plan.approvedHash = null;
             plan.approvedVia = null;
+            plan.approvedFileHashes = new LinkedHashMap<>();
+            plan.implementedRun = null;
         }
         plan.updated = now;
         store.save(plan);
@@ -175,6 +177,7 @@ public final class PlanService {
         plan.approvedAt = now;
         plan.approvedVia = via;
         plan.approvedHash = v.contentHash;
+        plan.approvedFileHashes = new LinkedHashMap<>(v.fileHashes);
         plan.pendingFeedback = null;
         plan.updated = now;
         store.save(plan);

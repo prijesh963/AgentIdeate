@@ -18,7 +18,8 @@ public final class PlanRenderer {
 
     /** @param full show every change's lines, not only those new or changed in this version */
     public static void render(Plan plan, PlanVersion v, boolean multiRoot, boolean full, Consumer<String> out) {
-        String state = plan.approved() && plan.approvedVersion == v.number ? "APPROVED (" + plan.approvedVia + ")"
+        String state = plan.implemented() && plan.approvedVersion == v.number ? "IMPLEMENTED (run " + plan.implementedRun + ")"
+                : plan.approved() && plan.approvedVersion == v.number ? "APPROVED (" + plan.approvedVia + ")"
                 : "abandoned".equals(plan.status) ? "abandoned" : "draft";
         out.accept("Plan " + plan.id + " v" + v.number + ": " + plan.title + "   [" + state + " · " + v.changes.size()
                 + " change" + (v.changes.size() == 1 ? "" : "s") + " · " + (v.errors.isEmpty() ? "valid" : v.errors.size() + " problems") + "]");
@@ -96,7 +97,8 @@ public final class PlanRenderer {
     /** One line per plan, for listings. */
     public static String summary(Plan plan) {
         PlanVersion v = plan.latest();
-        String state = plan.approved() ? "approved v" + plan.approvedVersion + " (" + plan.approvedVia + ")" : plan.status;
+        String state = plan.implemented() ? "implemented v" + plan.approvedVersion + " (run " + plan.implementedRun + ")"
+                : plan.approved() ? "approved v" + plan.approvedVersion + " (" + plan.approvedVia + ")" : plan.status;
         return plan.id + "  v" + (v == null ? 0 : v.number) + "  " + state + "  " + (v == null ? 0 : v.changes.size()) + " changes"
                 + (v != null && !v.errors.isEmpty() ? ", " + v.errors.size() + " problems" : "")
                 + (plan.pendingFeedback != null ? ", changes requested" : "") + "  " + plan.title;

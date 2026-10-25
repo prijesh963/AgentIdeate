@@ -74,17 +74,18 @@ class McpServerTest {
         JsonNode r = session(List.of(), INIT, """
                 {"jsonrpc":"2.0","id":2,"method":"tools/list"}""").get(1);
         JsonNode tools = r.at("/result/tools");
-        assertEquals(12, tools.size());
+        assertEquals(14, tools.size());
         for (JsonNode t : tools) {
-            boolean threaded = !List.of("repo_overview", "compress_log", "thread_recall", "plan_submit", "plan_show", "plan_approve")
-                    .contains(t.get("name").asText());
+            boolean threaded = !List.of("repo_overview", "compress_log", "thread_recall", "plan_submit", "plan_show", "plan_approve",
+                    "plan_implement", "plan_rollback").contains(t.get("name").asText());
             assertEquals(threaded, t.at("/inputSchema/properties/thread").isObject(), t.get("name").asText());
         }
         for (JsonNode t : tools) {
             assertEquals("object", t.at("/inputSchema/type").asText());
             assertTrue(t.at("/inputSchema/properties/repo").isObject(), t.toString());
-            // only plan_approve is not read-only: that is what makes a client without forms confirm it with the developer
-            assertEquals(!t.get("name").asText().equals("plan_approve"), t.at("/annotations/readOnlyHint").asBoolean(), t.toString());
+            // the tools that approve or write are not read-only: that is what makes a client without forms confirm them
+            boolean acts = List.of("plan_approve", "plan_implement", "plan_rollback").contains(t.get("name").asText());
+            assertEquals(!acts, t.at("/annotations/readOnlyHint").asBoolean(), t.toString());
             assertTrue(t.get("description").asText().length() < 220, "descriptions are paid for every turn: " + t);
         }
         assertEquals("query", tools.get(1).at("/inputSchema/required/0").asText());

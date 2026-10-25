@@ -37,10 +37,12 @@ source code to answer structural questions about the open project.
     decisions and approvals.
   - `client.json` (in the home folder itself): the name, version and capabilities of the last MCP
     client that started agentideate, so `setup` can report them.
-- **Nothing in the project.** The current version is entirely read-only with respect to source
-  code: a plan is a proposal stored under `~/.agentideate`, and approving it writes nothing either.
-  The next version, which applies an approved plan, will write only after the approval and an
-  explicit start, only inside the registered project folders, with an audit log.
+- **In the project, only an approved plan, and only after it is started.** Asking questions,
+  drafting and approving plans write nothing to the project. `plan_implement` (or `agentideate
+  implement`) writes the files of an approved plan, after a second, explicit Start from the
+  developer, only inside the registered project folders, and only if every file is unchanged since
+  approval. Originals are backed up under `~/.agentideate/workspaces/<id>/runs/<run>/backup/`, any
+  failure restores them, and every write and undo is appended to `audit.jsonl`.
 
 ## Approval
 
@@ -54,7 +56,8 @@ A plan is approved by the developer, never by the agent:
 - or, with `--approval terminal`, only by `java -jar agentideate.jar approve <plan>` typed in a terminal.
 
 A version that does not validate against the current code cannot be approved, and an approval
-covers exactly the approved content (by hash).
+covers exactly the approved content (by hash). Implementation needs that approval and, separately,
+a Start from the developer, given the same way (chat form, tool confirmation, or terminal).
 
 ## What it never does
 
@@ -62,8 +65,12 @@ covers exactly the approved content (by hash).
   approval page on `127.0.0.1` only.)
 - **No AI.** It never calls a model or any external service; answers are computed from source.
 - **No telemetry.** Nothing leaves the machine.
-- **No command execution.** The current version runs no processes. (`setup` only reads the running
-  Java's path and checks that the state folder is writable by creating and deleting a temp file.) (Later versions will run an
+- **No command but an allowlisted few.** Processes are started without a shell, only when an
+  approved plan is implemented, and only these, matched exactly: `git status` / `git rev-parse`
+  with read-only flags (to see what changed), the module's Gradle build with `compileJava
+  compileTestJava`, or its Maven build with `test-compile`. Anything else is refused before it starts.
+  Each has a timeout and capped output. The compile check can be turned off (`AGENTIDEATE_COMPILE=off`).
+  Note that a compile runs the project's own build scripts, as building it in the IDE would. (Later versions will run an
   allowlisted build command, `./gradlew compileJava`, with a timeout, after approval.)
 
 ## What is inside the jar

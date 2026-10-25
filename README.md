@@ -70,7 +70,8 @@ macOS     /Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java
 
 **3. Restart IntelliJ.** In Copilot Chat, switch to **Agent** mode; the tools icon lists
 `repo_overview`, `locate`, `endpoint_flow`, `messaging_map`, `data_map`, `impact_of`,
-`slice_for_task`, `compress_log`, `thread_recall`, `plan_submit`, `plan_show` and `plan_approve`.
+`slice_for_task`, `compress_log`, `thread_recall`, `plan_submit`, `plan_show`, `plan_approve`,
+`plan_implement` and `plan_rollback`.
 
 That's it. Open your project as usual and ask Copilot about it. The first question indexes the
 project (seconds for a small repo, a minute or two for a large one); after that only changed files
@@ -106,6 +107,8 @@ passes all of them. Or pin them in `mcp.json`:
 | `plan_submit` | "Plan: add invoice approval" | the agent's plan, checked against the code: every edit as "lines 38-38, from this to this", new files in full, problems that block approval, and cross-service effects to look at |
 | `plan_show` | "Show me the plan again" | the plan re-checked against today's code, every version and decision |
 | `plan_approve` | (after review) | an Approve / Request changes form in the Copilot chat; your click, not the agent's |
+| `plan_implement` | "Implement p1" | after your *Start* in the chat: the approved plan written exactly, every file verified, the build compiled; rolled back on any failure |
+| `plan_rollback` | "Undo that" | the run undone from its backups, never overwriting a file edited since |
 
 ### Plans: nothing is written until you approve
 
@@ -138,7 +141,28 @@ Approval is your action, per version:
   only `java -jar agentideate.jar approve p1` in a terminal approves.
 
 A plan version with problems against the current code is never approved, and any revision needs a
-new approval. (Applying an approved plan is the next milestone.)
+new approval.
+
+### Implementation: exactly what was approved, or nothing
+
+`plan_implement` asks for a second, separate decision, *Start: write N files*, in the chat (or
+Copilot's confirmation, or `java -jar agentideate.jar implement p1` in terminal mode). Then:
+
+1. **Gate.** The approval must cover the latest version's exact content, and every file the plan
+   touches must be byte-for-byte what it was at approval. Otherwise nothing is written: the plan no
+   longer describes the code, so it is revised and approved again.
+2. **All or nothing.** Every new file content is computed first; originals are backed up; each file
+   is written atomically, keeping its line endings; a failure part-way restores every file.
+3. **Verify.** Each file is re-read and checked against what was meant; `git status` before and
+   after shows anything that changed outside the plan; the changed modules are compiled with their
+   own Gradle or Maven build (`compileJava compileTestJava` / `test-compile`). Code that does not
+   compile is rolled back automatically; a build that fails for another reason (a dependency it
+   could not download) keeps the changes and says so.
+4. **Record and undo.** Each run is kept with its backups and written to an append-only audit log.
+   `plan_rollback` (or `java -jar agentideate.jar rollback r1`) undoes it, but never overwrites a
+   file edited after the run.
+
+Set `AGENTIDEATE_COMPILE=off` on machines that cannot build (or pass `compile: false`).
 
 ### It remembers the conversation
 
@@ -164,6 +188,8 @@ java -jar agentideate.jar log build/test.log --repo /work/shop
 java -jar agentideate.jar recall
 java -jar agentideate.jar plans                                   # list plans
 java -jar agentideate.jar approve p1                              # read the plan, approve it in the terminal
+java -jar agentideate.jar implement p1                            # write it (asks y/N), verify, compile
+java -jar agentideate.jar rollback r1                             # undo that run
 ```
 
 Gaps are listed in [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md). Where agentideate is

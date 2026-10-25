@@ -1,7 +1,9 @@
 package dev.agentideate.plan;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A planned change, from first draft to approval: its versions (each a complete, validated list of
@@ -15,7 +17,7 @@ public final class Plan {
     public String story;
     public long created;
     public long updated;
-    /** {@code draft}, {@code approved} or {@code abandoned}. */
+    /** {@code draft}, {@code approved}, {@code implemented} or {@code abandoned}. */
     public String status = "draft";
     public List<PlanVersion> versions = new ArrayList<>();
     public List<Decision> decisions = new ArrayList<>();
@@ -26,6 +28,12 @@ public final class Plan {
     public String approvedVia;
     /** The approved version's content hash: implementation refuses anything else. */
     public String approvedHash;
+    /** Content hash of each file the approved version touches, at approval: implementation refuses if one changed. */
+    public Map<String, String> approvedFileHashes = new LinkedHashMap<>();
+
+    /** The run that applied the approved version, once implemented. */
+    public String implementedRun;
+    public long implementedAt;
 
     /** Changes the developer asked for (through the chat form) that the next version must address. */
     public String pendingFeedback;
@@ -47,7 +55,12 @@ public final class Plan {
         return null;
     }
 
+    /** Approved and not yet changed since, whether or not it has been implemented. */
     public boolean approved() {
-        return "approved".equals(status) && approvedVersion != null;
+        return ("approved".equals(status) || "implemented".equals(status)) && approvedVersion != null;
+    }
+
+    public boolean implemented() {
+        return "implemented".equals(status) && implementedRun != null;
     }
 }
