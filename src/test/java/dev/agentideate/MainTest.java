@@ -111,4 +111,29 @@ class MainTest {
         assertEquals(2, run("", "call", "plan_show", "{not json", "--repo", r));
         assertEquals(2, run("", "--approval", "sometimes", "plans"));
     }
+
+    @Test
+    void implementAndRollbackInTheTerminal(@TempDir Path tmp) throws Exception {
+        Path repo = TestSupport.copyTree(TestSupport.shop(), tmp.resolve("shop"));
+        String r = repo.toString();
+        Path impl = repo.resolve("order-service/src/main/java/com/shop/order/service/OrderServiceImpl.java");
+        String original = java.nio.file.Files.readString(impl);
+        String plan = "{\"title\":\"Negate\",\"understanding\":\"x\",\"changes\":[{\"kind\":\"edit\","
+                + "\"file\":\"order-service/src/main/java/com/shop/order/service/OrderServiceImpl.java\","
+                + "\"before\":\"        order.setTotal(total(price.amount(), request.quantity()));\","
+                + "\"after\":\"        order.setTotal(total(price.amount(), request.quantity()).negate());\"}]}";
+        assertEquals(0, run("", "call", "plan_submit", plan, "--repo", r));
+        assertEquals(1, run("y\n", "implement", "p1", "--no-compile", "--repo", r));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("has no approved latest version"));
+        assertEquals(0, run("y\n", "approve", "p1", "--repo", r));
+        assertEquals(1, run("n\n", "implement", "p1", "--no-compile", "--repo", r));
+        assertTrue(out().contains("Not started; nothing was written."));
+        assertEquals(0, run("y\n", "implement", "p1", "--no-compile", "--repo", r));
+        assertTrue(out().contains("Implemented p1 v1 (run r1), started via terminal."), out());
+        assertTrue(java.nio.file.Files.readString(impl).contains(".negate()"));
+        assertEquals(0, run("", "rollback", "r1", "--repo", r));
+        assertEquals(original, java.nio.file.Files.readString(impl));
+        assertEquals(2, run("", "implement"));
+        assertEquals(1, run("", "rollback", "r5", "--repo", r));
+    }
 }

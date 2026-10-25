@@ -172,6 +172,27 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
    any revision clears it.
 8. **Plans live on one machine,** under `~/.agentideate`; they are not shared with teammates.
 
+## Implementation
+
+1. **The compile check needs a working build on the developer's machine.** The module's own
+   wrapper (`gradlew`, `mvnw`) is used when the repository has one, else `gradle`/`mvn` on the PATH.
+   Behind a proxy without dependency access the build fails for reasons other than the plan; the
+   changes are then kept and the report says the check could not complete.
+2. **Only compiler errors roll back.** Failing tests are not run here (that is Workflow 5), and a
+   build that fails for another reason does not roll back.
+3. **Compile errors anywhere roll back,** including in files the plan did not touch: a change that
+   breaks a caller is the plan's fault. A build that was already broken before the run is rolled
+   back too; fix it first.
+4. **"Outside the plan" is what git sees change during the run.** Edits made before the run by
+   Copilot's own file tools (bypassing agentideate) are caught by the approval hash gate only for
+   files the plan touches; review (Workflow 4) will compare the whole working tree with the plan.
+   Without git, the check is skipped and the report says so.
+5. **Files must be UTF-8.** A file in another encoding is refused rather than rewritten.
+6. **Undo needs the run's backups,** under `~/.agentideate`; deleting that folder makes a run
+   impossible to undo (git still has the history if the work was committed).
+7. **One plan at a time per file.** Two approved plans touching the same file: implementing one
+   changes the file, so the other's hash gate stops it until it is revised.
+
 ## Workspace
 
 1. **`setup` does not edit `mcp.json`.** It prints the entry to paste. The menu path it names for
@@ -199,7 +220,7 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
    opened all of them, or might have opened more. M4's benchmark compares real agent runs with and
    without agentideate.
 3. **The tool definitions are a fixed cost.** Copilot sends every MCP tool's name, description and
-   argument schema with each agent request: about 1,800 tokens for agentideate's 12 tools. One
+   argument schema with each agent request: about 2,000 tokens for agentideate's 14 tools. One
    avoided file read usually covers it; descriptions are kept short for this reason. If credits are
    counted per request rather than per token, it adds no requests.
 4. **The overview cites only the files it names** (controllers, applications, config), although it

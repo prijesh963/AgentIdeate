@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.agentideate.bench.Benchmark;
+import dev.agentideate.implement.TerminalImplement;
 import dev.agentideate.mcp.McpServer;
 import dev.agentideate.plan.TerminalApproval;
 import dev.agentideate.report.LedgerReport;
@@ -43,6 +44,8 @@ public final class Main {
               java -jar agentideate.jar setup                                    print the mcp.json entry and check this machine
               java -jar agentideate.jar plans | plan <id> [version]               list or show plans
               java -jar agentideate.jar approve <id> [version]                     approve a plan here, in the terminal
+              java -jar agentideate.jar implement <id> [--no-compile]              write an approved plan (asks first)
+              java -jar agentideate.jar rollback <run | plan id>                   undo an implementation run
               java -jar agentideate.jar call <tool> '<json arguments>'             run any tool (scripting, debugging)
 
             Serving MCP, --approval terminal (or AGENTIDEATE_APPROVAL=terminal) makes the terminal the only place
@@ -63,6 +66,7 @@ public final class Main {
         List<String> positional = new ArrayList<>();
         int days = 7;
         boolean allWorkspaces = false;
+        boolean noCompile = false;
         String approval = System.getenv("AGENTIDEATE_APPROVAL");
         for (int i = 0; i < argv.length; i++) {
             String a = argv[i];
@@ -75,6 +79,8 @@ public final class Main {
                 }
             } else if (a.equals("--all")) {
                 allWorkspaces = true;
+            } else if (a.equals("--no-compile")) {
+                noCompile = true;
             } else if (a.equals("--approval") && i + 1 < argv.length) {
                 approval = argv[++i];
             } else if (a.equals("--repo") || a.equals("-r")) {
@@ -101,7 +107,7 @@ public final class Main {
 
         String command = positional.isEmpty() ? "serve" : positional.get(0);
         try {
-            return dispatch(command, positional, repos, days, allWorkspaces, workspaces, registry, home, stdin, stdout, stderr);
+            return dispatch(command, positional, repos, days, allWorkspaces, noCompile, workspaces, registry, home, stdin, stdout, stderr);
         } catch (WorkspaceService.NoWorkspaceException e) {
             stderr.println(e.getMessage());
             return 1;
@@ -109,7 +115,7 @@ public final class Main {
     }
 
     private static int dispatch(String command, List<String> positional, List<Path> repos, int days, boolean allWorkspaces,
-                                WorkspaceService workspaces, ToolRegistry registry, AppHome home, InputStream stdin,
+                                boolean noCompile, WorkspaceService workspaces, ToolRegistry registry, AppHome home, InputStream stdin,
                                 PrintStream stdout, PrintStream stderr) throws IOException {
         ObjectNode args = new ObjectMapper().createObjectNode();
         switch (command) {
@@ -249,6 +255,22 @@ public final class Main {
                     }
                 }
                 return TerminalApproval.run(workspaces.snapshot(null), positional.get(1), version, stdin, stdout, stderr,
+                        System.currentTimeMillis());
+            }
+            case "implement" -> {
+                if (positional.size() < 2) {
+                    stderr.println("usage: implement <plan id> [--no-compile]");
+                    return 2;
+                }
+                return TerminalImplement.implement(workspaces.snapshot(null), registry.runner(), positional.get(1),
+                        registry.compileEnabled() && !noCompile, stdin, stdout, stderr, System.currentTimeMillis());
+            }
+            case "rollback" -> {
+                if (positional.size() < 2) {
+                    stderr.println("usage: rollback <run id | plan id>");
+                    return 2;
+                }
+                return TerminalImplement.rollback(workspaces.snapshot(null), registry.runner(), positional.get(1), stdout, stderr,
                         System.currentTimeMillis());
             }
             case "call" -> {

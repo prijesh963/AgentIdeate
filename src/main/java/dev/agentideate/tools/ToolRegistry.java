@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.agentideate.index.SourceFile;
 import dev.agentideate.workspace.WorkspaceService;
 
+import dev.agentideate.exec.CommandRunner;
+import dev.agentideate.exec.ProcessCommandRunner;
 import dev.agentideate.session.ThreadStore;
 
 import java.io.IOException;
@@ -39,6 +41,8 @@ public final class ToolRegistry {
     private Clock clock = Clock.systemUTC();
     private volatile ClientChannel client;
     private volatile String approvalMode = "chat";
+    private volatile CommandRunner runner = new ProcessCommandRunner();
+    private volatile boolean compileEnabled = !"off".equalsIgnoreCase(System.getenv("AGENTIDEATE_COMPILE"));
 
     public ToolRegistry(WorkspaceService workspaces, List<Tool> tools) {
         this.workspaces = workspaces;
@@ -52,6 +56,8 @@ public final class ToolRegistry {
         r.add(new PlanSubmitTool(r));
         r.add(new PlanShowTool(r));
         r.add(new PlanApproveTool(r));
+        r.add(new PlanImplementTool(r));
+        r.add(new PlanRollbackTool(r));
         return r;
     }
 
@@ -74,6 +80,24 @@ public final class ToolRegistry {
 
     public String approvalMode() {
         return approvalMode;
+    }
+
+    /** How commands (git status, the compile check) run; tests substitute their own. */
+    public void runner(CommandRunner runner) {
+        this.runner = runner;
+    }
+
+    public CommandRunner runner() {
+        return runner;
+    }
+
+    /** {@code AGENTIDEATE_COMPILE=off} turns the compile check after implementation off, for machines that cannot build. */
+    public void compileEnabled(boolean enabled) {
+        this.compileEnabled = enabled;
+    }
+
+    public boolean compileEnabled() {
+        return compileEnabled;
     }
 
     long now() {

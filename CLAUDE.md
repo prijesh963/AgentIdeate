@@ -21,8 +21,10 @@ If Maven Central answers 429, add `--max-workers=1`.
 - Java 21, Gradle Kotlin DSL, one self-contained jar. Runtime dependencies stay minimal
   (javaparser-core, jackson-databind); each new one needs a reason, because it has to pass review.
 - agentideate never calls a model. Every answer is computed from source.
-- Never write into the developer's project. State goes under `AppHome` (`~/.agentideate`).
-  Tests use a temp `AppHome`, never the real home.
+- Never write into the developer's project, except `Implementer` applying an approved, started
+  plan. State goes under `AppHome` (`~/.agentideate`). Tests use a temp `AppHome`, never the real home.
+- Processes run only through `ProcessCommandRunner`, whose allowlist is exact; widen it only with a
+  reason and a test of what stays refused.
 - stdout carries MCP protocol messages only; diagnostics go to stderr.
 - MCP and CLI both go through `ToolRegistry.call`. Don't add logic to `Main` or `McpServer`.
 - Answers: plain text, `file:line` for every claim, explicit "Not found" with what was searched,

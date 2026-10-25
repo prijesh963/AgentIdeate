@@ -16,7 +16,7 @@ import java.util.regex.Pattern;
  * <p>Frames are mapped to files by a locator (class name to {@code path:line}, or {@code null} for
  * a class outside the index); everything else, framework and JDK frames, is counted, not shown.
  */
-final class LogDigest {
+public final class LogDigest {
 
     static final int MAX_PROJECT_FRAMES = 3;
     static final int MAX_ITEMS = 25;
@@ -42,12 +42,12 @@ final class LogDigest {
      *                    when the class is not in the workspace
      * @param displayPath an absolute path from a compile error to how the workspace shows it
      */
-    LogDigest(Function<String, String> locate, Function<String, String> displayPath) {
+    public LogDigest(Function<String, String> locate, Function<String, String> displayPath) {
         this.locate = locate;
         this.displayPath = displayPath;
     }
 
-    List<String> digest(String log) {
+    public List<String> digest(String log) {
         String[] lines = log.replace("\r\n", "\n").split("\n");
         consumed = new boolean[lines.length];
         List<String> out = new ArrayList<>();
