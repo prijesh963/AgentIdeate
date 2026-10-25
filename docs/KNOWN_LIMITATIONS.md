@@ -150,25 +150,33 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
 
 ## Workspace
 
-1. **Project detection depends on the client.** When Copilot reports the open project as MCP roots,
+1. **`setup` does not edit `mcp.json`.** It prints the entry to paste. The menu path it names for
+   Copilot's MCP settings may differ between Copilot plugin versions, and has not been checked on
+   a real IntelliJ install yet.
+2. **Project detection depends on the client.** When Copilot reports the open project as MCP roots,
    no configuration is needed. If the IntelliJ Copilot plugin does not send roots, the agent passes
    the folder as the `repo` argument, or a `--repo` is added to `mcp.json`. Whether the plugin sends
    roots has not been verified on a real IntelliJ install yet.
-2. **The whole workspace is re-scanned on every call** to detect changes (directory walk plus size
+3. **The whole workspace is re-scanned on every call** to detect changes (directory walk plus size
    and mtime per file; only changed files are re-read). Fast for typical service repos; very large
    monorepos may want a file watcher instead (not implemented).
-3. **Several IntelliJ windows on the same project** share one cache directory. Two servers writing
+4. **Several IntelliJ windows on the same project** share one cache directory. Two servers writing
    it at the same moment is safe (atomic replace) but one may redo the other's work.
 
 ## Savings figures
 
-1. **The footer is an estimate.** "~N tokens to open" is the size of the cited files at ~4
+1. **The benchmark is a lower bound on a small sample.** `bench` compares answers with only the
+   files that hold the answer, read once, with no searching; real agents read more. The sample's
+   files are small, so its percentages understate what to expect on real code, but that is an
+   expectation, not a measurement. A task file written by hand can also be optimistic in what it
+   lists under `files` (missing files are rejected; too few files is not detected).
+2. **The footer is an estimate.** "~N tokens to open" is the size of the cited files at ~4
    characters per token: what reading every cited file would have cost. The agent might not have
    opened all of them, or might have opened more. M4's benchmark compares real agent runs with and
    without agentideate.
-2. **The tool definitions are a fixed cost.** Copilot sends every MCP tool's name, description and
+3. **The tool definitions are a fixed cost.** Copilot sends every MCP tool's name, description and
    argument schema with each agent request: about 1,300 tokens for agentideate's 9 tools. One
    avoided file read usually covers it; descriptions are kept short for this reason. If credits are
    counted per request rather than per token, it adds no requests.
-3. **The overview cites only the files it names** (controllers, applications, config), although it
+4. **The overview cites only the files it names** (controllers, applications, config), although it
    summarizes all of them, so its figure understates what it replaces.

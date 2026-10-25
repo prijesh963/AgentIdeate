@@ -10,6 +10,8 @@ Design and milestones: docs/DESIGN.md. Gaps: docs/KNOWN_LIMITATIONS.md.
 ./gradlew build        # compile + tests (must pass before pushing)
 ./gradlew shadowJar    # build/libs/agentideate.jar
 ./gradlew run --args="overview --repo samples/shop"
+./gradlew release      # jar + SHA-256 + SBOM, as published by the Release workflow
+java -jar build/libs/agentideate.jar bench benchmark/shop.json --repo samples/shop   # must stay 0
 ```
 
 If Maven Central answers 429, add `--max-workers=1`.
@@ -26,6 +28,7 @@ If Maven Central answers 429, add `--max-workers=1`.
 - Answers: plain text, `file:line` for every claim, explicit "Not found" with what was searched,
   under the `ToolRegistry.BUDGET_CHARS` cap. Tool descriptions stay short (sent on every turn).
 - An ambiguous name resolves to nothing, not to a guess.
-- `samples/shop` is the fixture for tests and the benchmark; it is never compiled.
+- `samples/shop` is the fixture for tests and the benchmark; it is never compiled. A change to it
+  usually needs `benchmark/shop.json` updated too (its `files` must exist, its facts must hold).
 - When a test fails, fix the cause or the fixture, never relax the assertion.
 - Record new gaps in docs/KNOWN_LIMITATIONS.md.

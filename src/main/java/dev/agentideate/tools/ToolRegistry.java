@@ -79,6 +79,23 @@ public final class ToolRegistry {
         return schema;
     }
 
+    /**
+     * The {@code tools/list} result: every tool's name, description and schema. Copilot sends this
+     * with each agent request, so its size is a fixed cost per request.
+     */
+    public ObjectNode toolsList() {
+        ObjectNode r = JSON.createObjectNode();
+        var arr = r.putArray("tools");
+        for (Tool t : tools.values()) {
+            ObjectNode o = arr.addObject();
+            o.put("name", t.name());
+            o.put("description", t.description());
+            o.set("inputSchema", schema(t));
+            o.putObject("annotations").put("readOnlyHint", t.readOnly());
+        }
+        return r;
+    }
+
     public Outcome call(String name, JsonNode arguments) {
         Tool tool = tools.get(name);
         if (tool == null) {

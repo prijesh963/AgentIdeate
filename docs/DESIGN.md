@@ -248,7 +248,7 @@ plan and goes through the same gate.
 | **M1** | Gradle skeleton, MCP stdio server with roots, sample microservices workspace, incremental Java index, graph (beans, routes, injection, interface dispatch, Feign hops), `repo_overview`, `locate`, `endpoint_flow`, savings footer and ledger | **done** |
 | **M2** | Spring config reading (YAML subset, properties) with placeholder resolution; Kafka/RabbitMQ/JMS and Spring Cloud Stream (functional) producer-consumer map across services; build-file dependencies; entity → table/collection, repositories, migrations, datasources; reverse index; `messaging_map`, `data_map`, `impact_of`; Kafka hops in `endpoint_flow` | **done** |
 | **M3** | Workflow 1 threads (relatedness by cited files and words, same branch, 6 h window; no repeats inside a thread; invalidation by file hash, including whole call trees; `thread_recall`), `slice_for_task`, `compress_log` (logs and JUnit XML) | **done** |
-| M4 | Benchmark harness on the sample, ledger report, release workflow (jar + checksum + SBOM), SECURITY fact sheet finalized | |
+| **M4** | `bench` (tasks with expected facts vs the files that hold them; a lower-bound comparison, runnable on any repo), `report` (ledger summary), `setup` (prints the mcp.json entry, checks the machine), release workflow and `./gradlew release` (jar, SHA-256, CycloneDX SBOM), benchmark in CI | **done** |
 | M5 | Workflow 2: plan contract, validation, decision ledger, approval page | |
 | M6 | Workflow 3: implement, verify, rollback, audit | |
 | M7 | Workflows 4 and 5: review, unit tests | |

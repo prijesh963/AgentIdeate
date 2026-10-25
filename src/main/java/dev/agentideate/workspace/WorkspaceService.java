@@ -80,6 +80,11 @@ public final class WorkspaceService {
         return new Snapshot(ws, graph, stats, stateDir);
     }
 
+    /** The workspace a request would be about, without indexing it. */
+    public Workspace workspaceFor(String repoArg) throws NoWorkspaceException {
+        return Workspace.of(chooseRoots(repoArg));
+    }
+
     List<Path> chooseRoots(String repoArg) throws NoWorkspaceException {
         if (repoArg != null && !repoArg.isBlank()) {
             return split(repoArg);

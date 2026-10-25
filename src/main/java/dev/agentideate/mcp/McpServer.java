@@ -2,10 +2,8 @@ package dev.agentideate.mcp;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.agentideate.Version;
-import dev.agentideate.tools.Tool;
 import dev.agentideate.tools.ToolRegistry;
 import dev.agentideate.workspace.WorkspaceService;
 
@@ -158,17 +156,7 @@ public final class McpServer {
     }
 
     private ObjectNode listTools() {
-        ObjectNode r = json.createObjectNode();
-        ArrayNode arr = r.putArray("tools");
-        for (Tool t : tools.tools()) {
-            ObjectNode o = arr.addObject();
-            o.put("name", t.name());
-            o.put("description", t.description());
-            o.set("inputSchema", tools.schema(t));
-            ObjectNode annotations = o.putObject("annotations");
-            annotations.put("readOnlyHint", t.readOnly());
-        }
-        return r;
+        return tools.toolsList();
     }
 
     private ObjectNode callTool(JsonNode params) {

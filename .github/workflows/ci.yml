@@ -14,11 +14,18 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
-      - name: Build and test
-        run: ./gradlew build shadowJar
-      - name: Upload jar
+      - name: Build, test and package (jar, SHA-256, SBOM)
+        run: ./gradlew build release
+      - name: Benchmark on the sample (answers must hold every expected fact)
+        run: java -jar build/libs/agentideate.jar bench benchmark/shop.json --repo samples/shop
+        env:
+          AGENTIDEATE_HOME: ${{ runner.temp }}/agentideate-home
+      - name: Upload the release files
         uses: actions/upload-artifact@v4
         with:
-          name: agentideate-jar
-          path: build/libs/agentideate.jar
+          name: agentideate
+          path: |
+            build/libs/agentideate.jar
+            build/libs/agentideate.jar.sha256
+            build/sbom/agentideate-sbom.json
           if-no-files-found: error
