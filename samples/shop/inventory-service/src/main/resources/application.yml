@@ -1,0 +1,10 @@
+spring:
+  application:
+    name: inventory-service
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/inventory
+  kafka:
+    bootstrap-servers: localhost:9092
+    consumer:
+      group-id: inventory

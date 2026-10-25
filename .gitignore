@@ -1,0 +1,10 @@
+.gradle/
+build/
+out/
+.idea/
+*.iml
+.DS_Store
+
+# Build outputs are attached to releases, never committed.
+*.jar
+!gradle/wrapper/gradle-wrapper.jar

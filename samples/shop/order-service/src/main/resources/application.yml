@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: order-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/orders
+  kafka:
+    bootstrap-servers: localhost:9092
+pricing:
+  url: http://pricing-service:8080
