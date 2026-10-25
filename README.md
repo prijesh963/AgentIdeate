@@ -70,7 +70,7 @@ macOS     /Applications/IntelliJ IDEA.app/Contents/jbr/Contents/Home/bin/java
 
 **3. Restart IntelliJ.** In Copilot Chat, switch to **Agent** mode; the tools icon lists
 `repo_overview`, `locate`, `endpoint_flow`, `messaging_map`, `data_map`, `impact_of`,
-`slice_for_task`, `compress_log` and `thread_recall`.
+`slice_for_task`, `compress_log`, `thread_recall`, `plan_submit`, `plan_show` and `plan_approve`.
 
 That's it. Open your project as usual and ask Copilot about it. The first question indexes the
 project (seconds for a small repo, a minute or two for a large one); after that only changed files
@@ -103,6 +103,42 @@ passes all of them. Or pin them in `mcp.json`:
 | `slice_for_task` | "Add a discount when placing an order" | the classes the task is about and their collaborators as signature skeletons with line numbers, entry points, and the source of only the key methods: the context for writing the change, in one call |
 | `compress_log` | "Why did the build fail?" | a Gradle/Maven/test/Spring Boot failure reduced to errors with `file:line`, from a log file, pasted text, or the JUnit XML reports |
 | `thread_recall` | "Continue the invoice approval work" | an earlier topic's questions and central files, to pick it up in a new chat |
+| `plan_submit` | "Plan: add invoice approval" | the agent's plan, checked against the code: every edit as "lines 38-38, from this to this", new files in full, problems that block approval, and cross-service effects to look at |
+| `plan_show` | "Show me the plan again" | the plan re-checked against today's code, every version and decision |
+| `plan_approve` | (after review) | an Approve / Request changes form in the Copilot chat; your click, not the agent's |
+
+### Plans: nothing is written until you approve
+
+To change code, the agent first submits a plan with `plan_submit`. Each change is an **edit** that
+quotes the exact current text it replaces, an **add** with the new file's content, or a **delete**.
+agentideate checks every version against the files as they are now, and refuses to call a plan valid
+when it is not:
+
+- a quoted text that does not match exactly once (with a hint when only the spacing differs);
+- an edit that leaves a Java file unparseable, an added file that already exists or sits in the
+  wrong package folder, a deleted file that other code still uses;
+- evidence (`OrderServiceImpl#placeOrder`) that is not in the code;
+- a change that breaks one of your decisions.
+
+It also flags, without blocking, code in other services that depends on what the plan changes (the
+consumers of a Kafka event the plan touches, for instance).
+
+You give feedback in the chat; the agent revises with a patch (only the changes that change; the
+rest carry over untouched) and records any rule you state as a **decision**, which every later
+version is shown and checked against (`"Messaging stays as it is"`, ruling out `**/messaging/**`).
+
+Approval is your action, per version:
+
+- **In the chat:** `plan_approve` asks Copilot to show a form with *Approve vN* / *Request changes*.
+  Your answer goes from Copilot to agentideate directly; the model never produces it.
+- **If your Copilot plugin cannot show forms**, `plan_approve` is marked as a tool that changes
+  something, so Copilot asks you to confirm the call; that approval is recorded as such.
+  `java -jar agentideate.jar setup` shows whether your plugin supports the form.
+- **Strictest:** add `"--approval", "terminal"` to the agentideate entry's `args` in `mcp.json`; then
+  only `java -jar agentideate.jar approve p1` in a terminal approves.
+
+A plan version with problems against the current code is never approved, and any revision needs a
+new approval. (Applying an approved plan is the next milestone.)
 
 ### It remembers the conversation
 
@@ -126,6 +162,8 @@ java -jar agentideate.jar impact OrderServiceImpl#placeOrder --repo /work/shop
 java -jar agentideate.jar slice add a discount when placing an order --repo /work/shop
 java -jar agentideate.jar log build/test.log --repo /work/shop
 java -jar agentideate.jar recall
+java -jar agentideate.jar plans                                   # list plans
+java -jar agentideate.jar approve p1                              # read the plan, approve it in the terminal
 ```
 
 Gaps are listed in [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md). Where agentideate is

@@ -1,9 +1,11 @@
 package dev.agentideate;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.agentideate.bench.Benchmark;
 import dev.agentideate.mcp.McpServer;
+import dev.agentideate.plan.TerminalApproval;
 import dev.agentideate.report.LedgerReport;
 import dev.agentideate.tools.ToolRegistry;
 import dev.agentideate.workspace.WorkspaceService;
@@ -39,6 +41,12 @@ public final class Main {
               java -jar agentideate.jar bench <tasks.json> [--repo <folder>]...  (exit 1 when an answer misses a fact)
               java -jar agentideate.jar report [--days N] [--all] [--repo <folder>]...
               java -jar agentideate.jar setup                                    print the mcp.json entry and check this machine
+              java -jar agentideate.jar plans | plan <id> [version]               list or show plans
+              java -jar agentideate.jar approve <id> [version]                     approve a plan here, in the terminal
+              java -jar agentideate.jar call <tool> '<json arguments>'             run any tool (scripting, debugging)
+
+            Serving MCP, --approval terminal (or AGENTIDEATE_APPROVAL=terminal) makes the terminal the only place
+            plans are approved; by default the developer approves in the Copilot chat.
               java -jar agentideate.jar --version | help
 
             Without --repo the open project (from Copilot) or the current folder is used.
@@ -55,6 +63,7 @@ public final class Main {
         List<String> positional = new ArrayList<>();
         int days = 7;
         boolean allWorkspaces = false;
+        String approval = System.getenv("AGENTIDEATE_APPROVAL");
         for (int i = 0; i < argv.length; i++) {
             String a = argv[i];
             if (a.equals("--days") && i + 1 < argv.length) {
@@ -66,6 +75,8 @@ public final class Main {
                 }
             } else if (a.equals("--all")) {
                 allWorkspaces = true;
+            } else if (a.equals("--approval") && i + 1 < argv.length) {
+                approval = argv[++i];
             } else if (a.equals("--repo") || a.equals("-r")) {
                 if (i + 1 >= argv.length) {
                     stderr.println("--repo needs a folder");
@@ -80,6 +91,13 @@ public final class Main {
         }
         WorkspaceService workspaces = new WorkspaceService(home, repos, Path.of("").toAbsolutePath());
         ToolRegistry registry = ToolRegistry.standard(workspaces);
+        if (approval != null) {
+            if (!approval.equals("chat") && !approval.equals("terminal")) {
+                stderr.println("--approval must be chat or terminal");
+                return 2;
+            }
+            registry.approvalMode(approval);
+        }
 
         String command = positional.isEmpty() ? "serve" : positional.get(0);
         try {
@@ -201,6 +219,51 @@ public final class Main {
             }
             case "setup" -> {
                 return Setup.run(home, stdout);
+            }
+            case "plans" -> {
+                return print(registry.call("plan_show", args), stdout, stderr);
+            }
+            case "plan" -> {
+                if (positional.size() < 2) {
+                    stderr.println("usage: plan <id> [version]");
+                    return 2;
+                }
+                args.put("plan", positional.get(1));
+                if (positional.size() > 2) {
+                    args.put("version", positional.get(2));
+                }
+                return print(registry.call("plan_show", args), stdout, stderr);
+            }
+            case "approve" -> {
+                if (positional.size() < 2) {
+                    stderr.println("usage: approve <id> [version]");
+                    return 2;
+                }
+                Integer version = null;
+                if (positional.size() > 2) {
+                    try {
+                        version = Integer.parseInt(positional.get(2));
+                    } catch (NumberFormatException e) {
+                        stderr.println("version must be a number");
+                        return 2;
+                    }
+                }
+                return TerminalApproval.run(workspaces.snapshot(null), positional.get(1), version, stdin, stdout, stderr,
+                        System.currentTimeMillis());
+            }
+            case "call" -> {
+                if (positional.size() < 2) {
+                    stderr.println("usage: call <tool> '<json arguments>'");
+                    return 2;
+                }
+                JsonNode callArgs;
+                try {
+                    callArgs = positional.size() > 2 ? new ObjectMapper().readTree(positional.get(2)) : args;
+                } catch (IOException e) {
+                    stderr.println("arguments must be a JSON object: " + e.getMessage());
+                    return 2;
+                }
+                return print(registry.call(positional.get(1), callArgs), stdout, stderr);
             }
             default -> {
                 stderr.println("Unknown command '" + command + "'.");

@@ -11,6 +11,11 @@ public final class ToolArgs {
         this.node = node;
     }
 
+    /** The raw arguments, for tools that take structured input. */
+    public JsonNode node() {
+        return node;
+    }
+
     public String string(String name) {
         JsonNode v = node == null ? null : node.get(name);
         if (v == null || v.isNull()) {

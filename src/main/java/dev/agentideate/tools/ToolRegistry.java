@@ -37,6 +37,8 @@ public final class ToolRegistry {
     private final Map<String, Tool> tools = new LinkedHashMap<>();
     private final Map<Path, ThreadStore> threadStores = new HashMap<>();
     private Clock clock = Clock.systemUTC();
+    private volatile ClientChannel client;
+    private volatile String approvalMode = "chat";
 
     public ToolRegistry(WorkspaceService workspaces, List<Tool> tools) {
         this.workspaces = workspaces;
@@ -47,7 +49,31 @@ public final class ToolRegistry {
         ToolRegistry r = new ToolRegistry(workspaces, List.of(new RepoOverviewTool(), new LocateTool(), new EndpointFlowTool(),
                 new MessagingMapTool(), new DataMapTool(), new ImpactTool(), new SliceTool(), new CompressLogTool()));
         r.add(new ThreadRecallTool(r));
+        r.add(new PlanSubmitTool(r));
+        r.add(new PlanShowTool(r));
+        r.add(new PlanApproveTool(r));
         return r;
+    }
+
+    /** The MCP client, while one is connected (null from the terminal). */
+    public void client(ClientChannel client) {
+        this.client = client;
+    }
+
+    public ClientChannel client() {
+        return client;
+    }
+
+    /**
+     * {@code chat} (default): approve through a form in the chat, or Copilot's tool confirmation
+     * when the client has no forms. {@code terminal}: only {@code agentideate approve} counts.
+     */
+    public void approvalMode(String mode) {
+        this.approvalMode = mode;
+    }
+
+    public String approvalMode() {
+        return approvalMode;
     }
 
     long now() {

@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "dev.agentideate"
-version = "0.4.0"
+version = "0.5.0"
 
 repositories {
     // Inside an office network, point the build at an Artifactory/Nexus mirror with

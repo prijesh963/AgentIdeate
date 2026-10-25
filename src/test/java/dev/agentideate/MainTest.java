@@ -87,4 +87,28 @@ class MainTest {
         assertEquals(1, run("", "bench", tmp.resolve("missing.json").toString(), "--repo", TestSupport.shop().toString()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("Cannot read tasks from"), err.toString(StandardCharsets.UTF_8));
     }
+
+    @Test
+    void plansAreListedShownAndApprovedInTheTerminal(@TempDir Path tmp) throws Exception {
+        Path repo = TestSupport.copyTree(TestSupport.shop(), tmp.resolve("shop"));
+        String r = repo.toString();
+        assertEquals(0, run("", "plans", "--repo", r));
+        assertTrue(out().contains("No plans yet."));
+        String plan = "{\"title\":\"Discount\",\"understanding\":\"10% off\",\"changes\":[{\"kind\":\"edit\","
+                + "\"file\":\"order-service/src/main/java/com/shop/order/service/OrderServiceImpl.java\","
+                + "\"before\":\"        order.setTotal(total(price.amount(), request.quantity()));\","
+                + "\"after\":\"        order.setTotal(total(price.amount(), request.quantity()).negate());\"}]}";
+        assertEquals(0, run("", "call", "plan_submit", plan, "--repo", r));
+        assertEquals(0, run("", "plan", "p1", "--repo", r));
+        assertTrue(out().contains("Plan p1 v1: Discount"));
+        assertEquals(1, run("n\n", "approve", "p1", "--repo", r));
+        assertTrue(out().contains("Not approved."));
+        assertEquals(0, run("y\n", "approve", "p1", "1", "--repo", r));
+        assertTrue(out().contains("Approved: p1 v1."));
+        assertEquals(0, run("", "plans", "--repo", r));
+        assertTrue(out().contains("approved v1 (terminal)"), out());
+        assertEquals(1, run("", "approve", "p7", "--repo", r));
+        assertEquals(2, run("", "call", "plan_show", "{not json", "--repo", r));
+        assertEquals(2, run("", "--approval", "sometimes", "plans"));
+    }
 }
