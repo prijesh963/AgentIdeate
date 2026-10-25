@@ -27,14 +27,41 @@ class WorkspaceIndexTest {
     void fullIndexFindsJavaAndConfigFilesAndModules() throws Exception {
         WorkspaceIndex index = new WorkspaceIndex(Workspace.of(List.of(repo())), tmp.resolve("state"));
         WorkspaceIndex.Stats s = index.refresh();
-        assertEquals(27, s.javaFiles());
+        assertEquals(35, s.javaFiles());
         assertEquals(s.files(), s.reparsed());
         assertEquals(0, s.parseErrors());
         assertTrue(s.changed());
-        assertEquals(List.of("inventory-service", "order-service", "pricing-service"),
+        assertEquals(List.of("inventory-service", "order-service", "pricing-service", "shipping-service"),
                 index.modules().get("shop").stream().sorted().toList());
         assertTrue(index.files().stream().anyMatch(f -> f.path().endsWith("application.yml")));
         assertTrue(index.files().stream().noneMatch(f -> f.path().endsWith("README.md")));
+    }
+
+    @Test
+    void configFilesKeepTheirPropertiesAndMigrationsTheirTables() throws Exception {
+        WorkspaceIndex index = new WorkspaceIndex(Workspace.of(List.of(repo())), tmp.resolve("state"));
+        index.refresh();
+        SourceFile yml = index.files().stream()
+                .filter(f -> f.path().equals("inventory-service/src/main/resources/application.yml")).findFirst().orElseThrow();
+        assertEquals("order.cancelled", yml.properties().get("app.topics.order-cancelled"));
+        assertEquals("north,south", yml.properties().get("app.warehouses"));
+        SourceFile props = index.files().stream()
+                .filter(f -> f.path().endsWith("application.properties")).findFirst().orElseThrow();
+        assertEquals("pricing-service", props.properties().get("spring.application.name"));
+        SourceFile v2 = index.files().stream().filter(f -> f.path().endsWith("V2__add_order_status.sql")).findFirst().orElseThrow();
+        assertEquals(List.of("orders"), v2.tables());
+        SourceFile java = index.files().stream().filter(SourceFile::isJava).findFirst().orElseThrow();
+        assertTrue(java.properties().isEmpty() && java.tables().isEmpty());
+    }
+
+    @Test
+    void aCacheFromAnOlderVersionIsRebuilt() throws Exception {
+        Path repo = repo();
+        new WorkspaceIndex(Workspace.of(List.of(repo)), tmp.resolve("state")).refresh();
+        Path cache = tmp.resolve("state/index.json");
+        Files.writeString(cache, Files.readString(cache).replaceFirst("\"version\":\\d+", "\"version\":1"));
+        WorkspaceIndex.Stats s = new WorkspaceIndex(Workspace.of(List.of(repo)), tmp.resolve("state")).refresh();
+        assertEquals(s.files(), s.reparsed());
     }
 
     @Test
@@ -80,7 +107,7 @@ class WorkspaceIndexTest {
         WorkspaceIndex.Stats s = index.refresh();
         assertEquals(1, s.removed());
         assertEquals(1, s.reparsed());
-        assertEquals(27, s.javaFiles());
+        assertEquals(35, s.javaFiles());
     }
 
     @Test
@@ -90,7 +117,7 @@ class WorkspaceIndexTest {
         assertTrue(Files.isRegularFile(tmp.resolve("state/index.json")));
         WorkspaceIndex.Stats s = new WorkspaceIndex(Workspace.of(List.of(repo)), tmp.resolve("state")).refresh();
         assertEquals(0, s.reparsed());
-        assertEquals(27, s.javaFiles());
+        assertEquals(35, s.javaFiles());
     }
 
     @Test
@@ -110,7 +137,7 @@ class WorkspaceIndexTest {
         Files.createDirectories(repo.resolve(".git"));
         Files.writeString(repo.resolve(".git/config.xml"), "<x/>");
         WorkspaceIndex index = new WorkspaceIndex(Workspace.of(List.of(repo)), tmp.resolve("state"));
-        assertEquals(27, index.refresh().javaFiles());
+        assertEquals(35, index.refresh().javaFiles());
         assertTrue(index.files().stream().noneMatch(f -> f.path().startsWith(".git")));
     }
 

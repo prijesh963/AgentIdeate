@@ -100,6 +100,8 @@ public final class CodeGraph {
     private final Map<String, List<TypeNode>> bySimple = new HashMap<>();
     private final Map<TypeNode, List<TypeNode>> directSubtypes = new IdentityHashMap<>();
     private final Map<TypeNode, String> beanKinds = new IdentityHashMap<>();
+    private Integrations integrations;
+    private ReverseIndex reverse;
 
     public CodeGraph(Workspace workspace, Collection<SourceFile> files) {
         this.workspace = workspace;
@@ -132,6 +134,22 @@ public final class CodeGraph {
 
     public Workspace workspace() {
         return workspace;
+    }
+
+    /** Messaging, datastores and config for this graph, computed on first use. */
+    public synchronized Integrations integrations() {
+        if (integrations == null) {
+            integrations = new Integrations(this);
+        }
+        return integrations;
+    }
+
+    /** Reverse edges (callers, injectors, entry points, tests), computed on first use. */
+    public synchronized ReverseIndex reverse() {
+        if (reverse == null) {
+            reverse = new ReverseIndex(this);
+        }
+        return reverse;
     }
 
     public List<SourceFile> files() {

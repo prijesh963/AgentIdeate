@@ -55,11 +55,14 @@ public final class JavaFileParser {
     static final Set<String> BEAN_STEREOTYPES = Set.of(
             "Component", "Service", "Repository", "Controller", "RestController", "Configuration");
 
-    private static final Set<String> INJECT_ANNOTATIONS = Set.of("Autowired", "Inject", "Resource");
+    private static final Set<String> INJECT_ANNOTATIONS = Set.of("Autowired", "Inject", "Resource", "PersistenceContext");
 
     private static final Map<String, String> MAPPING_ANNOTATIONS = Map.of(
             "GetMapping", "GET", "PostMapping", "POST", "PutMapping", "PUT",
             "DeleteMapping", "DELETE", "PatchMapping", "PATCH", "RequestMapping", "ANY");
+
+    /** How many leading call arguments are recorded: enough for {@code send(topic, key, value)}. */
+    static final int MAX_ARGS = 3;
 
     public record Parsed(String packageName, List<String> imports, List<TypeDecl> types, String error) {
     }
@@ -101,10 +104,19 @@ public final class JavaFileParser {
         String kind = "class";
         List<String> extendsTypes = new ArrayList<>();
         List<String> implementsTypes = new ArrayList<>();
+        Map<String, List<String>> superTypeArgs = new LinkedHashMap<>();
         if (type instanceof ClassOrInterfaceDeclaration c) {
             kind = c.isInterface() ? "interface" : "class";
             c.getExtendedTypes().forEach(t -> extendsTypes.add(t.getNameAsString()));
             c.getImplementedTypes().forEach(t -> implementsTypes.add(t.getNameAsString()));
+            for (ClassOrInterfaceType t : c.getExtendedTypes()) {
+                t.getTypeArguments().ifPresent(args -> superTypeArgs.put(t.getNameAsString(),
+                        args.stream().map(JavaFileParser::rawType).toList()));
+            }
+            for (ClassOrInterfaceType t : c.getImplementedTypes()) {
+                t.getTypeArguments().ifPresent(args -> superTypeArgs.put(t.getNameAsString(),
+                        args.stream().map(JavaFileParser::rawType).toList()));
+            }
         } else if (type instanceof EnumDeclaration e) {
             kind = "enum";
             e.getImplementedTypes().forEach(t -> implementsTypes.add(t.getNameAsString()));
@@ -117,6 +129,7 @@ public final class JavaFileParser {
 
         List<Ann> annotations = annotations(type);
         Map<String, String> fieldTypes = new HashMap<>();
+        Map<String, String> valueFields = new HashMap<>();
         List<FieldDecl> fields = new ArrayList<>();
         Map<String, String> constants = new LinkedHashMap<>();
         for (FieldDeclaration fd : type.getFields()) {
@@ -124,6 +137,11 @@ public final class JavaFileParser {
             for (VariableDeclarator v : fd.getVariables()) {
                 String vType = rawType(v.getType());
                 fieldTypes.put(v.getNameAsString(), vType);
+                for (Ann a : fieldAnns) {
+                    if (a.name().equals("Value") && a.attr("value") != null) {
+                        valueFields.put(v.getNameAsString(), a.attr("value"));
+                    }
+                }
                 fields.add(new FieldDecl(v.getNameAsString(), vType, line(v), fieldAnns,
                         fd.isStatic(), fd.isFinal(), v.getInitializer().isPresent()));
                 if (fd.isStatic() && fd.isFinal() && "String".equals(vType) && v.getInitializer().isPresent()) {
@@ -142,7 +160,7 @@ public final class JavaFileParser {
         for (MethodDeclaration m : type.getMethods()) {
             List<Ann> mAnns = annotations(m);
             methods.add(new MethodDecl(m.getNameAsString(), signature(m), m.getType().asString(),
-                    line(m), endLine(m), mAnns, calls(m, fieldTypes)));
+                    line(m), endLine(m), mAnns, calls(m, fieldTypes, valueFields)));
             for (Ann a : mAnns) {
                 String http = MAPPING_ANNOTATIONS.get(a.name());
                 if (http == null) {
@@ -165,7 +183,7 @@ public final class JavaFileParser {
         List<ConstructorDeclaration> ctors = type.getConstructors();
         for (ConstructorDeclaration ctor : ctors) {
             methods.add(new MethodDecl(ctor.getNameAsString(), signature(ctor), "", line(ctor), endLine(ctor),
-                    annotations(ctor), calls(ctor, fieldTypes)));
+                    annotations(ctor), calls(ctor, fieldTypes, valueFields)));
         }
 
         for (FieldDecl f : fields) {
@@ -205,7 +223,7 @@ public final class JavaFileParser {
         }
 
         return new TypeDecl(type.getNameAsString(), fqn, kind, line(type), endLine(type), annotations,
-                extendsTypes, implementsTypes, fields, methods, injections, endpoints, constants, basePath);
+                extendsTypes, implementsTypes, fields, methods, injections, endpoints, constants, basePath, superTypeArgs);
     }
 
     /** Spring uses the only constructor, or the one marked {@code @Autowired}. */
@@ -223,7 +241,8 @@ public final class JavaFileParser {
      * from a parameter, a local variable or a field. Chained calls ({@code a.b().c()}) are skipped:
      * resolving them needs return types this parser does not compute.
      */
-    private static List<CallSite> calls(CallableDeclaration<?> callable, Map<String, String> fieldTypes) {
+    private static List<CallSite> calls(CallableDeclaration<?> callable, Map<String, String> fieldTypes,
+                                        Map<String, String> valueFields) {
         Map<String, String> locals = new HashMap<>();
         for (Parameter p : callable.getParameters()) {
             locals.put(p.getNameAsString(), rawType(p.getType()));
@@ -246,8 +265,12 @@ public final class JavaFileParser {
         for (MethodCallExpr call : callable.findAll(MethodCallExpr.class)) {
             String name = call.getNameAsString();
             int ln = line(call);
+            List<String> args = new ArrayList<>();
+            for (int i = 0; i < Math.min(MAX_ARGS, call.getArguments().size()); i++) {
+                args.add(renderArg(call.getArgument(i), locals, valueFields));
+            }
             if (call.getScope().isEmpty() || call.getScope().get() instanceof ThisExpr) {
-                calls.add(new CallSite(null, name, ln));
+                calls.add(new CallSite(null, name, ln, args));
                 continue;
             }
             Expression scope = call.getScope().get();
@@ -258,16 +281,45 @@ public final class JavaFileParser {
                     t = id; // a static call such as OrderMapper.toDto(order)
                 }
                 if (t != null) {
-                    calls.add(new CallSite(t, name, ln));
+                    calls.add(new CallSite(t, name, ln, args));
                 }
             } else if (scope instanceof FieldAccessExpr fa && fa.getScope() instanceof ThisExpr) {
                 String t = fieldTypes.get(fa.getNameAsString());
                 if (t != null) {
-                    calls.add(new CallSite(t, name, ln));
+                    calls.add(new CallSite(t, name, ln, args));
                 }
             }
         }
         return calls;
+    }
+
+    /**
+     * A call argument as text: a literal as itself, a constant as {@code ${NAME}} (resolved later
+     * by the graph), a {@code @Value} field as its placeholder, a local variable or parameter as
+     * {@code <name>} (a runtime value, never looked up as a constant), anything else as {@code ?}.
+     */
+    static String renderArg(Expression e, Map<String, String> locals, Map<String, String> valueFields) {
+        if (e instanceof StringLiteralExpr s) {
+            return s.asString();
+        }
+        if (e instanceof NameExpr n) {
+            String id = n.getNameAsString();
+            if (locals.containsKey(id)) {
+                return "<" + id + ">";
+            }
+            return valueFields.containsKey(id) ? valueFields.get(id) : "${" + id + "}";
+        }
+        if (e instanceof FieldAccessExpr f) {
+            if (f.getScope() instanceof ThisExpr) {
+                String id = f.getNameAsString();
+                return valueFields.containsKey(id) ? valueFields.get(id) : "${" + id + "}";
+            }
+            return "${" + f + "}";
+        }
+        if (e instanceof BinaryExpr b && b.getOperator() == BinaryExpr.Operator.PLUS) {
+            return renderArg(b.getLeft(), locals, valueFields) + renderArg(b.getRight(), locals, valueFields);
+        }
+        return "?";
     }
 
     private static List<String> paths(Ann mapping) {

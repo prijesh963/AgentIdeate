@@ -20,7 +20,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 /**
  * A Model Context Protocol server over stdio: newline-delimited JSON-RPC 2.0 on stdin/stdout.
@@ -37,7 +36,8 @@ public final class McpServer {
     static final List<String> SUPPORTED_VERSIONS = List.of("2025-06-18", "2025-03-26", "2024-11-05");
 
     static final String INSTRUCTIONS = "agentideate indexes this Java/Spring workspace locally. Before opening "
-            + "files to learn structure or trace a flow, call repo_overview, locate or endpoint_flow: "
+            + "files to learn structure, trace a flow or size a change, call repo_overview, locate, endpoint_flow, "
+            + "messaging_map, data_map or impact_of: "
             + "their answers carry file:line and cost far fewer tokens than reading the files.";
 
     private static final String ROOTS_REQUEST_ID = "agentideate-roots";
@@ -166,13 +166,10 @@ public final class McpServer {
             o.put("description", t.description());
             o.set("inputSchema", tools.schema(t));
             ObjectNode annotations = o.putObject("annotations");
-            annotations.put("readOnlyHint", READ_ONLY.contains(t.name()));
+            annotations.put("readOnlyHint", t.readOnly());
         }
         return r;
     }
-
-    /** Every M1 tool only reads. Tools that write (implementing a plan) will not be listed here. */
-    private static final Set<String> READ_ONLY = Set.of("repo_overview", "locate", "endpoint_flow");
 
     private ObjectNode callTool(JsonNode params) {
         String name = params == null ? "" : params.path("name").asText("");

@@ -35,7 +35,8 @@ public final class ToolRegistry {
     }
 
     public static ToolRegistry standard(WorkspaceService workspaces) {
-        return new ToolRegistry(workspaces, List.of(new RepoOverviewTool(), new LocateTool(), new EndpointFlowTool()));
+        return new ToolRegistry(workspaces, List.of(new RepoOverviewTool(), new LocateTool(), new EndpointFlowTool(),
+                new MessagingMapTool(), new DataMapTool(), new ImpactTool()));
     }
 
     public List<Tool> tools() {

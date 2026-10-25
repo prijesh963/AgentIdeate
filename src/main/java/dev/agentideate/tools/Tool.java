@@ -18,5 +18,10 @@ public interface Tool {
     /** JSON Schema for the arguments, excluding {@code repo}, which the registry adds to every tool. */
     ObjectNode inputSchema();
 
+    /** Whether the tool only reads. Every tool so far does; a tool that writes must say so. */
+    default boolean readOnly() {
+        return true;
+    }
+
     void run(ToolArgs args, WorkspaceService.Snapshot snapshot, CodeGraph graph, Answer out) throws ToolException;
 }

@@ -41,7 +41,7 @@ class MainTest {
     void overviewLocateAndFlowFromTheTerminal() throws Exception {
         String repo = TestSupport.shop().toString();
         assertEquals(0, run("", "overview", "--repo", repo));
-        assertTrue(out().contains("3 Spring Boot services"));
+        assertTrue(out().contains("4 Spring Boot services"));
         assertEquals(0, run("", "locate", "stock", "repository", "--repo=" + repo));
         assertTrue(out().contains("StockRepository [spring-data-repository]"));
         assertEquals(0, run("", "flow", "/api/stock/{sku}", "GET", "-r", repo));

@@ -5,6 +5,7 @@ import dev.agentideate.graph.CodeGraph;
 import dev.agentideate.graph.CodeGraph.Call;
 import dev.agentideate.graph.CodeGraph.ResolvedEndpoint;
 import dev.agentideate.graph.CodeGraph.TypeNode;
+import dev.agentideate.graph.Integrations.Message;
 import dev.agentideate.index.MethodDecl;
 import dev.agentideate.workspace.WorkspaceService;
 
@@ -31,8 +32,8 @@ final class EndpointFlowTool implements Tool {
 
     @Override
     public String description() {
-        return "Trace a REST route through controller -> services -> repositories/clients, across services "
-                + "via Feign. Returns the call tree with file:line, so the flow is known without opening files.";
+        return "Trace a REST route through controller -> services -> repositories, across services via Feign "
+                + "and Kafka/RabbitMQ/JMS. Call tree with file:line, so the flow is known without opening files.";
     }
 
     @Override
@@ -84,7 +85,7 @@ final class EndpointFlowTool implements Tool {
             node(graph, e.owner(), handler, null, "  ", depth, seen, budget, out);
             out.blank();
         }
-        out.line("Not shown: calls into libraries/JDK, chained calls (a.b().c()), and Kafka hops (not indexed yet).");
+        out.line("Not shown: calls into libraries/JDK, chained calls (a.b().c()), messages sent to a runtime topic name.");
     }
 
     private void node(CodeGraph graph, TypeNode type, MethodDecl m, TypeNode via, String indent, int depth,
@@ -127,6 +128,29 @@ final class EndpointFlowTool implements Tool {
         }
         if (!dataTypes.isEmpty()) {
             out.line(indent + "  uses data: " + String.join(", ", dataTypes));
+        }
+        for (Message msg : graph.integrations().messagesIn(type, m)) {
+            if (msg.producer()) {
+                messageHop(graph, msg, indent + "  ", depth - 1, seen, budget, out);
+            }
+        }
+    }
+
+    /** A message sent: show the channel, then continue into each consumer found in the workspace. */
+    private void messageHop(CodeGraph graph, Message msg, String indent, int depth, Set<String> seen, int[] budget, Answer out) {
+        List<Message> consumers = graph.integrations().counterparts(msg);
+        out.line(indent + "-> " + msg.system() + " " + msg.channel() + (msg.resolved() ? "" : " (not known statically)")
+                + "  " + out.ref(msg.owner().file(), msg.line()));
+        if (msg.resolved() && consumers.isEmpty()) {
+            out.line(indent + "  => no consumer in this workspace");
+        }
+        if (depth <= 0) {
+            return;
+        }
+        for (Message c : consumers) {
+            out.line(indent + "  => consumed in " + graph.moduleKey(c.owner().file())
+                    + (c.group() == null ? "" : " (group " + c.group() + ")") + ":");
+            node(graph, c.owner(), c.method(), null, indent + "    ", depth, seen, budget, out);
         }
     }
 

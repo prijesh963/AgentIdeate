@@ -73,7 +73,7 @@ class McpServerTest {
         JsonNode r = session(List.of(), INIT, """
                 {"jsonrpc":"2.0","id":2,"method":"tools/list"}""").get(1);
         JsonNode tools = r.at("/result/tools");
-        assertEquals(3, tools.size());
+        assertEquals(6, tools.size());
         for (JsonNode t : tools) {
             assertEquals("object", t.at("/inputSchema/type").asText());
             assertTrue(t.at("/inputSchema/properties/repo").isObject(), t.toString());
@@ -136,7 +136,7 @@ class McpServerTest {
                 throw new RuntimeException(e);
             }
         }).toList());
-        assertTrue(msgs.get(2).at("/result/content/0/text").asText().contains("3 Spring Boot services"));
+        assertTrue(msgs.get(2).at("/result/content/0/text").asText().contains("4 Spring Boot services"));
     }
 
     @Test

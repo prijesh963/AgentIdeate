@@ -41,7 +41,7 @@ class CodeGraphTest {
 
     @Test
     void servicesAreModulesWithASpringBootApplication() {
-        assertEquals(List.of("inventory-service", "order-service", "pricing-service"),
+        assertEquals(List.of("inventory-service", "order-service", "pricing-service", "shipping-service"),
                 graph.services().keySet().stream().sorted().toList());
     }
 

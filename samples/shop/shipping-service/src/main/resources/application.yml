@@ -1,0 +1,21 @@
+spring:
+  application:
+    name: shipping-service
+  cloud:
+    function:
+      definition: shipOrder;notifyDelivery
+    stream:
+      kafka:
+        binder:
+          brokers: localhost:9092
+      bindings:
+        shipOrder-in-0:
+          destination: order.created
+          group: shipping
+        notifyDelivery-in-0:
+          destination: shipment.dispatched
+          group: notifications
+        notifyDelivery-out-0:
+          destination: delivery.notices
+        shipmentDispatched-out-0:
+          destination: shipment.dispatched

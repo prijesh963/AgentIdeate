@@ -4,12 +4,14 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.agentideate.graph.CodeGraph;
 import dev.agentideate.graph.CodeGraph.ResolvedEndpoint;
 import dev.agentideate.graph.CodeGraph.TypeNode;
+import dev.agentideate.graph.Integrations;
 import dev.agentideate.index.MethodDecl;
 import dev.agentideate.index.SourceFile;
 import dev.agentideate.workspace.WorkspaceService;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -26,7 +28,7 @@ final class LocateTool implements Tool {
             "to", "and", "or", "it", "this", "that", "file", "files", "class", "method", "implemented",
             "implementation", "find", "show", "me", "located", "lives", "defined", "code", "already");
 
-    private static final List<String> KINDS = List.of("class", "route", "method", "file");
+    private static final List<String> KINDS = List.of("class", "route", "topic", "table", "method", "file");
 
     record Candidate(String kind, String label, SourceFile file, int line, List<String> primary,
                      List<String> secondary, String exactName) {
@@ -42,8 +44,8 @@ final class LocateTool implements Tool {
 
     @Override
     public String description() {
-        return "Find where something lives: classes, methods, REST routes, config files, by name or words "
-                + "(e.g. 'invoice approval'). Returns file:line. Says explicitly when nothing exists.";
+        return "Find where something lives: classes, methods, REST routes, Kafka topics, tables, config files, "
+                + "by name or words (e.g. 'invoice approval'). Returns file:line. Says when nothing exists.";
     }
 
     @Override
@@ -108,10 +110,13 @@ final class LocateTool implements Tool {
             long methods = candidates.stream().filter(c -> c.kind().equals("method")).count();
             long routes = candidates.stream().filter(c -> c.kind().equals("route")).count();
             long configs = candidates.stream().filter(c -> c.kind().equals("file")).count();
+            long topics = candidates.stream().filter(c -> c.kind().equals("topic")).count();
+            long tables = candidates.stream().filter(c -> c.kind().equals("table")).count();
             out.line("Not found: nothing named like \"" + query + "\" among " + types + " classes, " + methods
-                    + " methods, " + routes + " routes and " + configs + " config files.");
-            out.line("Searched names of Java types, methods, route paths and config file paths. Not searched: "
-                    + "comments, string contents, non-Java file contents.");
+                    + " methods, " + routes + " routes, " + topics + " topics/queues, " + tables + " tables/collections and "
+                    + configs + " config files.");
+            out.line("Searched names of Java types, methods, route paths, channels, tables and config file paths. "
+                    + "Not searched: comments, string contents, config values.");
             return;
         }
         out.line("locate \"" + query + "\": " + hits.size() + " match" + (hits.size() == 1 ? "" : "es")
@@ -146,6 +151,19 @@ final class LocateTool implements Tool {
         for (ResolvedEndpoint e : graph.endpoints()) {
             out.add(new Candidate("route", e.httpMethod() + " " + e.path() + " -> " + e.owner().name() + "#" + e.handler(),
                     e.owner().file(), e.line(), words(e.path()), words(e.handler()), null));
+        }
+        Set<String> channels = new HashSet<>();
+        for (Integrations.Message m : graph.integrations().messages()) {
+            if (m.resolved() && channels.add(m.system() + " " + m.channel())) {
+                out.add(new Candidate("topic", m.system() + " " + m.channel() + "  (" + (m.producer() ? "produced" : "consumed")
+                        + " in " + m.owner().name() + ")", m.owner().file(), m.line(), words(m.channel()), List.of(m.system()),
+                        m.channel().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "")));
+            }
+        }
+        for (Integrations.Entity e : graph.integrations().entities()) {
+            out.add(new Candidate("table", (e.store().equals("mongodb") ? "collection " : "table ") + e.name() + " <- " + e.type().name(),
+                    e.type().file(), e.type().decl().line(), words(e.name()), List.of(e.store()),
+                    e.name().toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "")));
         }
         for (SourceFile f : graph.files()) {
             if (!f.isJava()) {
