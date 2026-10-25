@@ -1,0 +1,18 @@
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.shop.inventory.service.InventoryServiceTest
+[ERROR] Tests run: 3, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.412 s <<< FAILURE! -- in com.shop.inventory.service.InventoryServiceTest
+[ERROR] com.shop.inventory.service.InventoryServiceTest.reserveDecrementsStock -- Time elapsed: 0.031 s <<< FAILURE!
+[INFO]
+[INFO] Results:
+[INFO]
+[ERROR] Failures:
+[ERROR]   InventoryServiceTest.reserveDecrementsStock:27 expected: <4> but was: <5>
+[INFO]
+[ERROR] Tests run: 3, Failures: 1, Errors: 0, Skipped: 0
+[INFO]
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.2.5:test (default-test) on project inventory-service: There are test failures.

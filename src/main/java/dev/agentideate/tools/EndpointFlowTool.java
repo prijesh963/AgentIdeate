@@ -88,10 +88,13 @@ final class EndpointFlowTool implements Tool {
         out.line("Not shown: calls into libraries/JDK, chained calls (a.b().c()), messages sent to a runtime topic name.");
     }
 
-    private void node(CodeGraph graph, TypeNode type, MethodDecl m, TypeNode via, String indent, int depth,
-                      Set<String> seen, int[] budget, Answer out) {
+    /** Prints a call-tree node and its subtree; returns the files the subtree spans. */
+    private Set<String> node(CodeGraph graph, TypeNode type, MethodDecl m, TypeNode via, String indent, int depth,
+                             Set<String> seen, int[] budget, Answer out) {
+        Set<String> files = new HashSet<>();
+        files.add(type.file().key());
         if (budget[0]-- <= 0) {
-            return;
+            return files;
         }
         String key = type.fqn() + "#" + m.name();
         String label = (via != null ? via.name() + "." + m.name() + " -> " : "") + type.name() + "#" + m.name();
@@ -100,11 +103,18 @@ final class EndpointFlowTool implements Tool {
                 ? "" : " [" + kind + "]";
         if (!seen.add(key)) {
             out.line(indent + label + tag + "  (see above)");
-            return;
+            return files;
+        }
+        String threadKey = type.file().key() + "|" + key;
+        if (out.shownEarlier(threadKey)) {
+            out.line(indent + label + tag + "  " + out.ref(type.file(), m.line()) + "  (expanded earlier in this thread)");
+            files.addAll(out.earlierFiles(threadKey));
+            return files;
         }
         out.line(indent + label + tag + "  " + out.ref(type.file(), m.line()));
         if (depth <= 0) {
-            return;
+            out.expanded(threadKey, files);
+            return files;
         }
         TreeSet<String> dataTypes = new TreeSet<>();
         for (Call c : graph.callees(type, m)) {
@@ -121,23 +131,26 @@ final class EndpointFlowTool implements Tool {
                 continue;
             }
             if ("feign-client".equals(graph.beanKind(c.target()))) {
-                feignHop(graph, c, childIndent, depth - 1, seen, budget, out);
+                files.addAll(feignHop(graph, c, childIndent, depth - 1, seen, budget, out));
                 continue;
             }
-            node(graph, c.target(), c.method(), c.via(), childIndent, depth - 1, seen, budget, out);
+            files.addAll(node(graph, c.target(), c.method(), c.via(), childIndent, depth - 1, seen, budget, out));
         }
         if (!dataTypes.isEmpty()) {
             out.line(indent + "  uses data: " + String.join(", ", dataTypes));
         }
         for (Message msg : graph.integrations().messagesIn(type, m)) {
             if (msg.producer()) {
-                messageHop(graph, msg, indent + "  ", depth - 1, seen, budget, out);
+                files.addAll(messageHop(graph, msg, indent + "  ", depth - 1, seen, budget, out));
             }
         }
+        out.expanded(threadKey, files);
+        return files;
     }
 
     /** A message sent: show the channel, then continue into each consumer found in the workspace. */
-    private void messageHop(CodeGraph graph, Message msg, String indent, int depth, Set<String> seen, int[] budget, Answer out) {
+    private Set<String> messageHop(CodeGraph graph, Message msg, String indent, int depth, Set<String> seen, int[] budget, Answer out) {
+        Set<String> files = new HashSet<>();
         List<Message> consumers = graph.integrations().counterparts(msg);
         out.line(indent + "-> " + msg.system() + " " + msg.channel() + (msg.resolved() ? "" : " (not known statically)")
                 + "  " + out.ref(msg.owner().file(), msg.line()));
@@ -145,13 +158,14 @@ final class EndpointFlowTool implements Tool {
             out.line(indent + "  => no consumer in this workspace");
         }
         if (depth <= 0) {
-            return;
+            return files;
         }
         for (Message c : consumers) {
             out.line(indent + "  => consumed in " + graph.moduleKey(c.owner().file())
                     + (c.group() == null ? "" : " (group " + c.group() + ")") + ":");
-            node(graph, c.owner(), c.method(), null, indent + "    ", depth, seen, budget, out);
+            files.addAll(node(graph, c.owner(), c.method(), null, indent + "    ", depth, seen, budget, out));
         }
+        return files;
     }
 
     /** Annotations that mark a type as data (an entity, a document, a Lombok value) rather than logic. */
@@ -178,7 +192,9 @@ final class EndpointFlowTool implements Tool {
     }
 
     /** A Feign call: show the client method, then continue into the route it reaches if another indexed service exposes it. */
-    private void feignHop(CodeGraph graph, Call c, String indent, int depth, Set<String> seen, int[] budget, Answer out) {
+    private Set<String> feignHop(CodeGraph graph, Call c, String indent, int depth, Set<String> seen, int[] budget, Answer out) {
+        Set<String> files = new HashSet<>();
+        files.add(c.target().file().key());
         ResolvedEndpoint client = null;
         for (ResolvedEndpoint ce : graph.clientEndpoints()) {
             if (ce.owner() == c.target() && ce.handler().equals(c.methodName())) {
@@ -191,7 +207,7 @@ final class EndpointFlowTool implements Tool {
         out.line(indent + c.target().name() + "#" + c.methodName() + " [feign -> " + target + call + "]  "
                 + out.ref(c.target().file(), c.method().line()));
         if (client == null || depth <= 0) {
-            return;
+            return files;
         }
         for (ResolvedEndpoint route : graph.endpoints()) {
             boolean methodOk = route.httpMethod().equals(client.httpMethod()) || route.httpMethod().equals("ANY");
@@ -200,10 +216,11 @@ final class EndpointFlowTool implements Tool {
                 MethodDecl handler = route.owner().method(route.handler());
                 if (handler != null) {
                     out.line(indent + "  => handled in " + graph.moduleKey(route.owner().file()) + ":");
-                    node(graph, route.owner(), handler, null, indent + "    ", depth, seen, budget, out);
+                    files.addAll(node(graph, route.owner(), handler, null, indent + "    ", depth, seen, budget, out));
                 }
             }
         }
+        return files;
     }
 
     static List<ResolvedEndpoint> match(List<ResolvedEndpoint> all, String path, String method, boolean loose) {

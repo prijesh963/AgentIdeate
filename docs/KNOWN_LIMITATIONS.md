@@ -111,6 +111,43 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
    `<Name>Tests`, `<Name>IT` naming convention. Tests that only reach the target indirectly, through
    a Spring context, are not listed.
 
+## Conversation threads
+
+1. **A new chat is not visible to the server.** Copilot runs one agentideate process per IDE, so a
+   second chat on the same topic within 6 hours continues the thread, and the answers leave out what
+   the first chat was given. Every such answer says so and how to get it in full (`thread: "new"`);
+   `thread_recall` restores a topic for a new chat and resets what counts as given.
+2. **Relatedness is a heuristic:** overlap of cited files plus overlap of words, threshold 0.3. Two
+   questions about different features that touch the same central class (an `OrderService` used by
+   everything) can be joined; a follow-up phrased with entirely new words about files not cited yet
+   can start a new thread. `thread: "<id>"` and `thread: "new"` override it.
+3. **Only list lines and call trees are deduplicated.** Overviews, data maps and slices are given in
+   full each time (with known files shortened to their name).
+4. **Threads are per workspace and kept for 30 threads**, oldest dropped first.
+
+## Task slices
+
+1. **Seeds are found by words,** the same matching as `locate` with simple stemming. A task that
+   names nothing the code names ("make checkout faster") finds nothing, and says so.
+2. **Collaborators are one hop:** injected beans and their implementations, a repository's entity,
+   interfaces, direct callers. Utilities called statically and deeper chains are not included; the
+   skeleton's `->` lists show where to look next.
+3. **At most 3 method bodies of up to 40 lines each** are included, and only those scoring within 60%
+   of the best match. A long method is cut, with the remaining line count shown.
+
+## Log digests
+
+1. **Recognized:** Gradle and Maven outcomes, Gradle "What went wrong", javac errors in both
+   formats (with symbol/location), Gradle test console failures, Maven Surefire failure summaries,
+   Java stack traces with cause chains (frames shown only when the class is in the index), Spring
+   Boot "APPLICATION FAILED TO START" reports, JUnit XML reports (Gradle and Maven locations).
+2. **Not recognized:** Kotlin compiler errors, Gradle configuration-cache problems, dependency
+   resolution failures beyond the "What went wrong" text, non-English build output, test frameworks
+   that do not write JUnit XML.
+3. **JUnit reports may be stale.** The digest says how old the newest report is; a report written
+   before the last change describes the old code.
+4. **Only files inside the workspace are read** through `path`; anything else is refused.
+
 ## Workspace
 
 1. **Project detection depends on the client.** When Copilot reports the open project as MCP roots,
@@ -129,5 +166,9 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
    characters per token: what reading every cited file would have cost. The agent might not have
    opened all of them, or might have opened more. M4's benchmark compares real agent runs with and
    without agentideate.
-2. **The overview cites only the files it names** (controllers, applications, config), although it
+2. **The tool definitions are a fixed cost.** Copilot sends every MCP tool's name, description and
+   argument schema with each agent request: about 1,300 tokens for agentideate's 9 tools. One
+   avoided file read usually covers it; descriptions are kept short for this reason. If credits are
+   counted per request rather than per token, it adds no requests.
+3. **The overview cites only the files it names** (controllers, applications, config), although it
    summarizes all of them, so its figure understates what it replaces.

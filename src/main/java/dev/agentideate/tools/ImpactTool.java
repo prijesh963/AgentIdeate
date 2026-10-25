@@ -167,7 +167,7 @@ final class ImpactTool implements Tool {
         }
         callers.removeIf(r -> r.owner() == t);
         section(out, "Called by", callers.size());
-        callers.stream().limit(MAX_PER_SECTION).forEach(r -> out.line("  " + r.owner().name() + "#" + r.method().name()
+        callers.stream().limit(MAX_PER_SECTION).forEach(r -> out.fact("  " + r.owner().name() + "#" + r.method().name()
                 + elsewhere(graph, r.owner(), home) + "  " + out.ref(r.owner().file(), r.line())));
         more(out, callers.size());
 
@@ -175,7 +175,7 @@ final class ImpactTool implements Tool {
             List<Injector> injectors = rev.injectorsOf(t);
             if (!injectors.isEmpty()) {
                 section(out, "Injected into", injectors.size());
-                injectors.stream().limit(MAX_PER_SECTION).forEach(i -> out.line("  " + i.owner().name() + " ("
+                injectors.stream().limit(MAX_PER_SECTION).forEach(i -> out.fact("  " + i.owner().name() + " ("
                         + (i.point().type().equals(t.name()) ? "" : "as " + i.point().type() + ", ") + i.point().via() + ")"
                         + elsewhere(graph, i.owner(), home) + "  " + out.ref(i.owner().file(), i.point().line())));
                 more(out, injectors.size());
@@ -198,7 +198,7 @@ final class ImpactTool implements Tool {
             }
         }
         section(out, "Reached from", entryLines.size());
-        entryLines.stream().limit(MAX_PER_SECTION).forEach(out::line);
+        entryLines.stream().limit(MAX_PER_SECTION).forEach(out::fact);
         more(out, entryLines.size());
 
         // messages this code sends, directly or through the beans it calls, and who receives them
@@ -210,7 +210,7 @@ final class ImpactTool implements Tool {
                 String to = receivers.isEmpty() ? "no consumer in this workspace"
                         : String.join(", ", receivers.stream().map(r -> graph.moduleKey(r.owner().file()) + " "
                         + r.owner().name() + "#" + r.method().name()).toList());
-                out.line("  " + s.system() + " " + s.channel() + " -> " + to + "  " + out.ref(s.owner().file(), s.line()));
+                out.fact("  " + s.system() + " " + s.channel() + " -> " + to + "  " + out.ref(s.owner().file(), s.line()));
             }
         }
 
@@ -241,7 +241,7 @@ final class ImpactTool implements Tool {
             rev.testsOf(sup).stream().filter(x -> !tests.contains(x)).forEach(tests::add);
         }
         section(out, "Tests", tests.size());
-        tests.stream().limit(MAX_PER_SECTION).forEach(x -> out.line("  " + x.name() + "  " + out.ref(x.file(), x.decl().line())));
+        tests.stream().limit(MAX_PER_SECTION).forEach(x -> out.fact("  " + x.name() + "  " + out.ref(x.file(), x.decl().line())));
         if (tests.isEmpty()) {
             out.line("  none reference it");
         }
@@ -290,9 +290,9 @@ final class ImpactTool implements Tool {
                     .filter(c -> !consumers.contains(c)).forEach(consumers::add);
         }
         section(out, "Producers", producers.size());
-        producers.forEach(p -> out.line("  " + MessagingMapTool.describe(graph, p, out)));
+        producers.forEach(p -> out.fact("  " + MessagingMapTool.describe(graph, p, out)));
         section(out, "Consumers", consumers.size());
-        consumers.forEach(c -> out.line("  " + MessagingMapTool.describe(graph, c, out)));
+        consumers.forEach(c -> out.fact("  " + MessagingMapTool.describe(graph, c, out)));
         if (consumers.isEmpty()) {
             out.line("  none in this workspace: changing the payload may break an external consumer");
         }
@@ -306,7 +306,7 @@ final class ImpactTool implements Tool {
             }
         }
         section(out, "Produced when", routes.size());
-        routes.forEach(out::line);
+        routes.forEach(out::fact);
         out.line("A payload change must stay compatible with every consumer above, or change them in the same plan.");
     }
 

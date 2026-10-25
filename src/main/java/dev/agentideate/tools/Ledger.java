@@ -23,7 +23,8 @@ public final class Ledger {
     }
 
     public static void record(Path stateDir, String tool, long millis, int returnedBytes,
-                              int referencedFiles, long referencedBytes) {
+                              int referencedFiles, long referencedBytes, String thread, boolean continued,
+                              long omittedBytes) {
         try {
             Files.createDirectories(stateDir);
             ObjectNode row = JSON.createObjectNode()
@@ -32,7 +33,10 @@ public final class Ledger {
                     .put("ms", millis)
                     .put("returnedBytes", returnedBytes)
                     .put("referencedFiles", referencedFiles)
-                    .put("referencedBytes", referencedBytes);
+                    .put("referencedBytes", referencedBytes)
+                    .put("thread", thread)
+                    .put("continued", continued)
+                    .put("omittedBytes", omittedBytes);
             Files.writeString(stateDir.resolve("ledger.jsonl"), JSON.writeValueAsString(row) + "\n",
                     StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
         } catch (IOException ignored) {

@@ -67,13 +67,13 @@ final class MessagingMapTool implements Tool {
             List<Message> producers = ch.getValue().stream().filter(Message::producer).toList();
             List<Message> consumers = ch.getValue().stream().filter(m -> !m.producer()).toList();
             for (Message p : producers) {
-                out.line("  produced by  " + describe(graph, p, out));
+                out.fact("  produced by  " + describe(graph, p, out));
             }
             if (producers.isEmpty() && !ch.getKey().contains(" pattern:")) {
                 out.line("  produced by  none in this workspace (external, or not indexed)");
             }
             for (Message c : consumers) {
-                out.line("  consumed by  " + describe(graph, c, out));
+                out.fact("  consumed by  " + describe(graph, c, out));
             }
             if (consumers.isEmpty()) {
                 List<Message> viaPattern = producers.isEmpty() ? List.of() : integ.counterparts(producers.get(0));

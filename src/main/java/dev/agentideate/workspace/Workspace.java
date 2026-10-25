@@ -85,6 +85,46 @@ public record Workspace(List<Root> roots) {
         return r == null ? Path.of(f.path()) : r.path().resolve(f.path());
     }
 
+    /**
+     * The checked-out branch of each root ({@code name=branch}, comma-joined), read from
+     * {@code .git/HEAD}; a detached head is its commit prefix, a non-git root contributes nothing.
+     */
+    public String branch() {
+        List<String> parts = new ArrayList<>();
+        for (Root r : roots) {
+            String b = gitBranch(r.path());
+            if (b != null) {
+                parts.add(multiRoot() ? r.name() + "=" + b : b);
+            }
+        }
+        return String.join(",", parts);
+    }
+
+    static String gitBranch(Path root) {
+        try {
+            Path git = root.resolve(".git");
+            if (Files.isRegularFile(git)) { // a worktree: ".git" is a file pointing at the real git dir
+                String pointer = Files.readString(git).trim();
+                if (!pointer.startsWith("gitdir:")) {
+                    return null;
+                }
+                git = root.resolve(pointer.substring("gitdir:".length()).trim());
+            }
+            Path head = git.resolve("HEAD");
+            if (!Files.isRegularFile(head)) {
+                return null;
+            }
+            String h = Files.readString(head).trim();
+            if (h.startsWith("ref:")) {
+                String ref = h.substring(4).trim();
+                return ref.startsWith("refs/heads/") ? ref.substring("refs/heads/".length()) : ref;
+            }
+            return h.length() >= 12 ? h.substring(0, 12) : h;
+        } catch (IOException | RuntimeException e) {
+            return null;
+        }
+    }
+
     public boolean allRootsExist() {
         return roots.stream().allMatch(r -> Files.isDirectory(r.path()));
     }

@@ -21,11 +21,18 @@ source code to answer structural questions about the open project.
   in URLs is masked. Answers show topic and queue names, table names and a datasource's kind and
   database name, never hosts, users or passwords.
 - It does not follow symbolic links out of the project.
+- `compress_log` reads a log file only when its real path is inside a project folder, and JUnit XML
+  reports from the projects' own `build/test-results` and `target/*-reports` folders, with DTDs and
+  external entities disabled so a report cannot pull in other files.
 
 ## What it writes
 
-- Only under `~/.agentideate/` (or `AGENTIDEATE_HOME`): an index cache (`index.json`) and a usage
-  log (`ledger.jsonl`, recording tool name, timing and sizes, never code or questions) per workspace.
+- Only under `~/.agentideate/` (or `AGENTIDEATE_HOME`), per workspace:
+  - `index.json`: the index cache (code structure, redacted config values);
+  - `ledger.jsonl`: a usage log of tool name, timing, sizes and thread id, never code or questions;
+  - `threads.json`: conversation threads, which hold the questions asked (tool arguments such as a
+    route path or a task description), the answer lines already given, and the paths of cited files.
+    The 30 most recent threads are kept.
 - **Nothing in the project.** The current version is entirely read-only with respect to source
   code. Later versions that can apply an approved change will write only after two explicit
   developer actions, only inside the registered project folders, with an audit log.

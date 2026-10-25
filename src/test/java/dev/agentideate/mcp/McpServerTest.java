@@ -73,7 +73,11 @@ class McpServerTest {
         JsonNode r = session(List.of(), INIT, """
                 {"jsonrpc":"2.0","id":2,"method":"tools/list"}""").get(1);
         JsonNode tools = r.at("/result/tools");
-        assertEquals(6, tools.size());
+        assertEquals(9, tools.size());
+        for (JsonNode t : tools) {
+            boolean threaded = !List.of("repo_overview", "compress_log", "thread_recall").contains(t.get("name").asText());
+            assertEquals(threaded, t.at("/inputSchema/properties/thread").isObject(), t.get("name").asText());
+        }
         for (JsonNode t : tools) {
             assertEquals("object", t.at("/inputSchema/type").asText());
             assertTrue(t.at("/inputSchema/properties/repo").isObject(), t.toString());

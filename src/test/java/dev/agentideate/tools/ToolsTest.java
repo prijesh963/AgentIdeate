@@ -104,12 +104,13 @@ class ToolsTest {
     void everyAnswerCarriesTheSavingsFooterAndIsLedgered() throws Exception {
         String t = call("endpoint_flow", "path", "/api/orders/{id}", "method", "GET").text();
         assertTrue(t.lines().reduce((a, b) -> b).orElseThrow()
-                .matches("-- agentideate: from \\d+ source files \\(~[\\d.k]+ tokens to open\\) -> ~[\\d.k]+ tokens here; index 35 Java files.*"), t);
+                .matches("-- agentideate: thread t\\d+ (new|continued.*); from \\d+ source files \\(~[\\d.k]+ tokens to open\\) -> ~[\\d.k]+ tokens here; index 35 Java files.*"), t);
         try (Stream<Path> s = Files.walk(home)) {
             Path ledger = s.filter(p -> p.getFileName().toString().equals("ledger.jsonl")).findFirst().orElseThrow();
             String row = Files.readAllLines(ledger).get(0);
             assertTrue(row.contains("\"tool\":\"endpoint_flow\""), row);
             assertTrue(row.contains("\"referencedFiles\":3"), row);
+            assertTrue(row.contains("\"thread\":\"t1\"") && row.contains("\"continued\":false"), row);
         }
     }
 
