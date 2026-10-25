@@ -42,7 +42,9 @@ macOS     /Users/<you>/.agentideate/agentideate.jar
 Linux     /home/<you>/.agentideate/agentideate.jar
 ```
 
-**2. Add it to Copilot's MCP configuration.** In IntelliJ, open Copilot's MCP settings
+**2. Add it to Copilot's MCP configuration.** `java -jar <path>/agentideate.jar setup` checks
+your machine and prints the exact entry for your jar and your Java; it changes nothing itself. In
+IntelliJ, open Copilot's MCP settings
 (*Settings → Tools → GitHub Copilot → Model Context Protocol (MCP) → Configure*, or the tools icon
 in Copilot Chat's agent mode → *Add more tools*; the exact location varies by plugin version).
 This opens `mcp.json`. Add the `agentideate` entry, with your jar's path:
@@ -130,11 +132,28 @@ Gaps are listed in [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md). Where
 heading (stateful Q&A, plans with an approval gate, implementation, review, tests, debugging) is in
 [docs/DESIGN.md](docs/DESIGN.md).
 
+## Measuring what it saves
+
+```bash
+java -jar agentideate.jar bench benchmark/shop.json --repo samples/shop   # tasks vs the files they replace
+java -jar agentideate.jar report --repo /work/shop                         # what Copilot actually used, last 7 days
+```
+
+On the sample, answers are 64% smaller than even the minimum set of files holding the same facts,
+with every expected fact present; the sample's files are small, so measure on your own repository
+with your own tasks. See [docs/BENCHMARK.md](docs/BENCHMARK.md).
+
+## Releases
+
+Each `v*` tag publishes the jar, its SHA-256 and an SBOM as a GitHub Release, ready for Artifactory.
+See [docs/RELEASING.md](docs/RELEASING.md).
+
 ## Building it yourself
 
 ```bash
 ./gradlew build          # compile + all tests
 ./gradlew shadowJar      # build/libs/agentideate.jar
+./gradlew release        # jar + SHA-256 (build/libs) and SBOM (build/sbom)
 ```
 
 Inside an office network, resolve dependencies through Artifactory without editing the build:

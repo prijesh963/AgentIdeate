@@ -1,0 +1,26 @@
+2026-10-25T18:01:02.123+02:00  INFO 4242 --- [order-service] [           main] c.s.order.OrderServiceApplication        : Starting OrderServiceApplication
+2026-10-25T18:01:04.456+02:00  WARN 4242 --- [order-service] [           main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization
+2026-10-25T18:01:04.470+02:00 ERROR 4242 --- [order-service] [           main] o.s.b.d.LoggingFailureAnalysisReporter   :
+
+***************************
+APPLICATION FAILED TO START
+***************************
+
+Description:
+
+Parameter 2 of constructor in com.shop.order.service.OrderServiceImpl required a bean of type 'com.shop.order.client.PricingClient' that could not be found.
+
+
+Action:
+
+Consider defining a bean of type 'com.shop.order.client.PricingClient' in your configuration.
+
+2026-10-25T18:01:05.001+02:00 ERROR 4242 --- [order-service] [           main] o.s.boot.SpringApplication               : Application run failed
+org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'orderServiceImpl': Unsatisfied dependency expressed through constructor parameter 2
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:795)
+	at org.springframework.beans.factory.support.ConstructorResolver.autowireConstructor(ConstructorResolver.java:237)
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:335)
+	at com.shop.order.OrderServiceApplication.main(OrderServiceApplication.java:12)
+Caused by: org.springframework.beans.factory.NoSuchBeanDefinitionException: No qualifying bean of type 'com.shop.order.client.PricingClient' available
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.raiseNoMatchingBeanFound(DefaultListableBeanFactory.java:1880)
+	... 21 common frames omitted

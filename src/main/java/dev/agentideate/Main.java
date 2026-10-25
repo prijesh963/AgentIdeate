@@ -2,7 +2,9 @@ package dev.agentideate;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.agentideate.bench.Benchmark;
 import dev.agentideate.mcp.McpServer;
+import dev.agentideate.report.LedgerReport;
 import dev.agentideate.tools.ToolRegistry;
 import dev.agentideate.workspace.WorkspaceService;
 
@@ -34,6 +36,9 @@ public final class Main {
               java -jar agentideate.jar slice <task words...> [--repo <folder>]...
               java -jar agentideate.jar log [log file] [--repo <folder>]...     (no file: JUnit XML reports)
               java -jar agentideate.jar recall [topic | thread id] [--repo <folder>]...
+              java -jar agentideate.jar bench <tasks.json> [--repo <folder>]...  (exit 1 when an answer misses a fact)
+              java -jar agentideate.jar report [--days N] [--all] [--repo <folder>]...
+              java -jar agentideate.jar setup                                    print the mcp.json entry and check this machine
               java -jar agentideate.jar --version | help
 
             Without --repo the open project (from Copilot) or the current folder is used.
@@ -48,9 +53,20 @@ public final class Main {
             throws IOException {
         List<Path> repos = new ArrayList<>();
         List<String> positional = new ArrayList<>();
+        int days = 7;
+        boolean allWorkspaces = false;
         for (int i = 0; i < argv.length; i++) {
             String a = argv[i];
-            if (a.equals("--repo") || a.equals("-r")) {
+            if (a.equals("--days") && i + 1 < argv.length) {
+                try {
+                    days = Integer.parseInt(argv[++i]);
+                } catch (NumberFormatException e) {
+                    stderr.println("--days needs a number");
+                    return 2;
+                }
+            } else if (a.equals("--all")) {
+                allWorkspaces = true;
+            } else if (a.equals("--repo") || a.equals("-r")) {
                 if (i + 1 >= argv.length) {
                     stderr.println("--repo needs a folder");
                     return 2;
@@ -66,6 +82,17 @@ public final class Main {
         ToolRegistry registry = ToolRegistry.standard(workspaces);
 
         String command = positional.isEmpty() ? "serve" : positional.get(0);
+        try {
+            return dispatch(command, positional, repos, days, allWorkspaces, workspaces, registry, home, stdin, stdout, stderr);
+        } catch (WorkspaceService.NoWorkspaceException e) {
+            stderr.println(e.getMessage());
+            return 1;
+        }
+    }
+
+    private static int dispatch(String command, List<String> positional, List<Path> repos, int days, boolean allWorkspaces,
+                                WorkspaceService workspaces, ToolRegistry registry, AppHome home, InputStream stdin,
+                                PrintStream stdout, PrintStream stderr) throws IOException {
         ObjectNode args = new ObjectMapper().createObjectNode();
         switch (command) {
             case "serve" -> {
@@ -141,6 +168,39 @@ public final class Main {
                     args.put("topic", String.join(" ", positional.subList(1, positional.size())));
                 }
                 return print(registry.call("thread_recall", args), stdout, stderr);
+            }
+            case "bench" -> {
+                if (positional.size() < 2) {
+                    stderr.println("usage: bench <tasks.json> [--repo <folder>]");
+                    return 2;
+                }
+                List<Benchmark.Task> tasks;
+                try {
+                    tasks = Benchmark.load(Path.of(positional.get(1)));
+                } catch (IOException e) {
+                    stderr.println("Cannot read tasks from " + positional.get(1) + ": " + e.getMessage());
+                    return 1;
+                }
+                var ws = workspaces.workspaceFor(null);
+                var results = Benchmark.run(registry, ws, tasks);
+                String label = String.join(", ", ws.roots().stream().map(r -> r.name()).toList());
+                stdout.print(Benchmark.render(results, label, registry.toolsList().toString().length()));
+                return results.stream().allMatch(Benchmark.Result::passed) ? 0 : 1;
+            }
+            case "report" -> {
+                long since = System.currentTimeMillis() - days * 24L * 60 * 60 * 1000;
+                if (allWorkspaces) {
+                    stdout.print(LedgerReport.render(LedgerReport.allWorkspaces(home.dir()), since,
+                            "all workspaces, last " + days + " days"));
+                } else {
+                    var ws = workspaces.workspaceFor(null);
+                    stdout.print(LedgerReport.render(List.of(home.workspaceDir(ws.id())), since,
+                            String.join(", ", ws.roots().stream().map(r -> r.name()).toList()) + ", last " + days + " days"));
+                }
+                return 0;
+            }
+            case "setup" -> {
+                return Setup.run(home, stdout);
             }
             default -> {
                 stderr.println("Unknown command '" + command + "'.");

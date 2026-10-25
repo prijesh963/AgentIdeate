@@ -1,0 +1,237 @@
+{
+  "tasks": [
+    {
+      "id": "overview",
+      "question": "Which services exist and what do they expose?",
+      "tool": "repo_overview",
+      "args": {},
+      "expect": [
+        "Service order-service [gradle]",
+        "Service inventory-service [maven]",
+        "Service shipping-service",
+        "GET    /api/prices/{sku}",
+        "calls out: PricingClient -> pricing-service"
+      ],
+      "files": [
+        "order-service/src/main/java/com/shop/order/OrderServiceApplication.java",
+        "inventory-service/src/main/java/com/shop/inventory/InventoryApplication.java",
+        "pricing-service/src/main/java/com/shop/pricing/PricingApplication.java",
+        "shipping-service/src/main/java/com/shop/shipping/ShippingApplication.java",
+        "order-service/src/main/java/com/shop/order/web/OrderController.java",
+        "inventory-service/src/main/java/com/shop/inventory/web/StockController.java",
+        "pricing-service/src/main/java/com/shop/pricing/web/PriceController.java",
+        "order-service/src/main/java/com/shop/order/config/ApiPaths.java",
+        "order-service/src/main/java/com/shop/order/client/PricingClient.java",
+        "order-service/build.gradle",
+        "inventory-service/pom.xml",
+        "pricing-service/build.gradle.kts",
+        "shipping-service/build.gradle"
+      ]
+    },
+    {
+      "id": "flow-place-order",
+      "question": "How does POST /api/orders work end to end?",
+      "tool": "endpoint_flow",
+      "args": {
+        "path": "/api/orders",
+        "method": "POST"
+      },
+      "expect": [
+        "OrderService.placeOrder -> OrderServiceImpl#placeOrder",
+        "PricingClient#getPrice [feign -> pricing-service",
+        "PriceService#currentPrice",
+        "-> kafka order.created",
+        "=> consumed in inventory-service",
+        "=> consumed in shipping-service"
+      ],
+      "files": [
+        "order-service/src/main/java/com/shop/order/web/OrderController.java",
+        "order-service/src/main/java/com/shop/order/config/ApiPaths.java",
+        "order-service/src/main/java/com/shop/order/service/OrderService.java",
+        "order-service/src/main/java/com/shop/order/service/OrderServiceImpl.java",
+        "order-service/src/main/java/com/shop/order/client/PricingClient.java",
+        "pricing-service/src/main/java/com/shop/pricing/web/PriceController.java",
+        "pricing-service/src/main/java/com/shop/pricing/service/PriceService.java",
+        "order-service/src/main/java/com/shop/order/messaging/OrderEventPublisher.java",
+        "order-service/src/main/java/com/shop/order/config/KafkaTopics.java",
+        "inventory-service/src/main/java/com/shop/inventory/messaging/OrderCreatedListener.java",
+        "shipping-service/src/main/java/com/shop/shipping/config/ShippingFunctions.java",
+        "shipping-service/src/main/resources/application.yml"
+      ]
+    },
+    {
+      "id": "consumers",
+      "question": "Who consumes order.created?",
+      "tool": "messaging_map",
+      "args": {
+        "channel": "order.created"
+      },
+      "expect": [
+        "OrderCreatedListener#onOrderCreated",
+        "ShippingFunctions#shipOrder",
+        "group shipping"
+      ],
+      "files": [
+        "order-service/src/main/java/com/shop/order/messaging/OrderEventPublisher.java",
+        "order-service/src/main/java/com/shop/order/config/KafkaTopics.java",
+        "inventory-service/src/main/java/com/shop/inventory/messaging/OrderCreatedListener.java",
+        "shipping-service/src/main/java/com/shop/shipping/config/ShippingFunctions.java",
+        "shipping-service/src/main/resources/application.yml",
+        "inventory-service/src/main/resources/application.yml"
+      ]
+    },
+    {
+      "id": "where-reserve",
+      "question": "Where is stock reserved?",
+      "tool": "locate",
+      "args": {
+        "query": "stock reserve"
+      },
+      "expect": [
+        "InventoryService#reserve(String sku, int quantity)",
+        "POST /api/stock/{sku}/reserve"
+      ],
+      "files": [
+        "inventory-service/src/main/java/com/shop/inventory/service/InventoryService.java",
+        "inventory-service/src/main/java/com/shop/inventory/web/StockController.java"
+      ]
+    },
+    {
+      "id": "not-implemented",
+      "question": "Is invoice approval already implemented?",
+      "tool": "locate",
+      "args": {
+        "query": "invoice approval"
+      },
+      "expect": [
+        "Not found: nothing named like \"invoice approval\""
+      ],
+      "files": []
+    },
+    {
+      "id": "tables",
+      "question": "Which tables does order-service use, and which migrations touch them?",
+      "tool": "data_map",
+      "args": {
+        "name": "orders"
+      },
+      "expect": [
+        "table orders <- OrderEntity",
+        "repo OrderRepository",
+        "V1__create_orders.sql",
+        "V2__add_order_status.sql"
+      ],
+      "files": [
+        "order-service/src/main/java/com/shop/order/domain/OrderEntity.java",
+        "order-service/src/main/java/com/shop/order/repository/OrderRepository.java",
+        "order-service/src/main/resources/application.yml",
+        "order-service/src/main/resources/db/migration/V1__create_orders.sql",
+        "order-service/src/main/resources/db/migration/V2__add_order_status.sql"
+      ]
+    },
+    {
+      "id": "impact-entity",
+      "question": "What does changing OrderEntity touch?",
+      "tool": "impact_of",
+      "args": {
+        "target": "OrderEntity"
+      },
+      "expect": [
+        "OrderServiceImpl#placeOrder",
+        "OrderEventPublisher#publishCreated",
+        "route POST /api/orders",
+        "OrderServiceImplTest",
+        "V2__add_order_status.sql"
+      ],
+      "files": [
+        "order-service/src/main/java/com/shop/order/domain/OrderEntity.java",
+        "order-service/src/main/java/com/shop/order/service/OrderServiceImpl.java",
+        "order-service/src/main/java/com/shop/order/messaging/OrderEventPublisher.java",
+        "order-service/src/main/java/com/shop/order/repository/OrderRepository.java",
+        "order-service/src/main/java/com/shop/order/web/OrderController.java",
+        "order-service/src/test/java/com/shop/order/service/OrderServiceImplTest.java",
+        "order-service/src/main/resources/db/migration/V1__create_orders.sql",
+        "order-service/src/main/resources/db/migration/V2__add_order_status.sql"
+      ]
+    },
+    {
+      "id": "impact-reserve",
+      "question": "What reaches InventoryService#reserve?",
+      "tool": "impact_of",
+      "args": {
+        "target": "InventoryService#reserve"
+      },
+      "expect": [
+        "kafka order.created consumed by OrderCreatedListener#onOrderCreated",
+        "route POST /api/stock/{sku}/reserve"
+      ],
+      "files": [
+        "inventory-service/src/main/java/com/shop/inventory/service/InventoryService.java",
+        "inventory-service/src/main/java/com/shop/inventory/web/StockController.java",
+        "inventory-service/src/main/java/com/shop/inventory/messaging/OrderCreatedListener.java"
+      ]
+    },
+    {
+      "id": "slice-discount",
+      "question": "Context to add a discount when placing an order",
+      "tool": "slice_for_task",
+      "args": {
+        "task": "add a discount when placing an order"
+      },
+      "expect": [
+        "== OrderServiceImpl [service]",
+        "table orders: Long id",
+        "38 |         order.setTotal(total(price.amount(), request.quantity()));",
+        "=> kafka order.created"
+      ],
+      "files": [
+        "order-service/src/main/java/com/shop/order/web/OrderController.java",
+        "order-service/src/main/java/com/shop/order/service/OrderService.java",
+        "order-service/src/main/java/com/shop/order/service/OrderServiceImpl.java",
+        "order-service/src/main/java/com/shop/order/repository/OrderRepository.java",
+        "order-service/src/main/java/com/shop/order/domain/OrderEntity.java",
+        "order-service/src/main/java/com/shop/order/messaging/OrderEventPublisher.java"
+      ]
+    },
+    {
+      "id": "messaging-all",
+      "question": "Which topics and queues exist, and who produces and consumes each?",
+      "tool": "messaging_map",
+      "args": {},
+      "expect": [
+        "kafka order.cancelled",
+        "kafka shipment.dispatched",
+        "StreamBridge binding shipmentDispatched-out-0",
+        "kafka delivery.notices",
+        "not bound: not in spring.cloud.function.definition"
+      ],
+      "files": [
+        "order-service/src/main/java/com/shop/order/messaging/OrderEventPublisher.java",
+        "order-service/src/main/java/com/shop/order/config/KafkaTopics.java",
+        "inventory-service/src/main/java/com/shop/inventory/messaging/OrderCreatedListener.java",
+        "inventory-service/src/main/java/com/shop/inventory/messaging/OrderCancelledListener.java",
+        "shipping-service/src/main/java/com/shop/shipping/config/ShippingFunctions.java",
+        "shipping-service/src/main/java/com/shop/shipping/service/ShipmentService.java",
+        "shipping-service/src/main/resources/application.yml",
+        "inventory-service/src/main/resources/application.yml",
+        "shipping-service/build.gradle"
+      ]
+    },
+    {
+      "id": "startup-failure",
+      "question": "Why did order-service fail to start?",
+      "tool": "compress_log",
+      "args": {
+        "path": "order-service/logs/startup-failure.log"
+      },
+      "expect": [
+        "APPLICATION FAILED TO START",
+        "Consider defining a bean of type 'com.shop.order.client.PricingClient'",
+        "root cause: NoSuchBeanDefinitionException"
+      ],
+      "files": [
+        "order-service/logs/startup-failure.log"
+      ]
+    }
+  ]
+}

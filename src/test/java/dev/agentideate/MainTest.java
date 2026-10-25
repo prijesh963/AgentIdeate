@@ -64,4 +64,27 @@ class MainTest {
         assertTrue(err.toString(StandardCharsets.UTF_8).isEmpty() || !out().contains("agentideate:"),
                 "diagnostics never go to stdout");
     }
+
+    @Test
+    void benchReportAndSetupFromTheTerminal() throws Exception {
+        String repo = TestSupport.shop().toString();
+        String tasks = TestSupport.shopTasks().toString();
+        assertEquals(0, run("", "bench", tasks, "--repo", repo));
+        assertTrue(out().contains("Facts found: 40/40."), out());
+        assertEquals(0, run("", "report", "--days", "1", "--repo", repo));
+        assertTrue(out().contains("agentideate usage for shop, last 1 days: 11 calls"), out());
+        assertEquals(0, run("", "report", "--all"));
+        assertEquals(2, run("", "report", "--days", "soon"));
+        // run from classes, not the jar: setup reports that and exits 1, but still prints a usable entry
+        assertEquals(1, run("", "setup"));
+        assertTrue(out().contains("\"agentideate\""), out());
+        assertTrue(out().contains("<path to agentideate.jar>"), out());
+    }
+
+    @Test
+    void aBadTaskFileIsAMessageNotAStackTrace(@TempDir Path tmp) throws Exception {
+        assertEquals(2, run("", "bench"));
+        assertEquals(1, run("", "bench", tmp.resolve("missing.json").toString(), "--repo", TestSupport.shop().toString()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("Cannot read tasks from"), err.toString(StandardCharsets.UTF_8));
+    }
 }

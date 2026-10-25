@@ -20,6 +20,11 @@ public final class TestSupport {
         return Path.of(dir, "shop").toAbsolutePath();
     }
 
+    /** The benchmark task file for the sample, {@code benchmark/shop.json}. */
+    public static Path shopTasks() {
+        return shop().getParent().getParent().resolve("benchmark/shop.json");
+    }
+
     public static Path copyTree(Path from, Path to) throws IOException {
         try (Stream<Path> paths = Files.walk(from)) {
             for (Path p : (Iterable<Path>) paths::iterator) {
