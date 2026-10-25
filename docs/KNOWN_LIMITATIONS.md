@@ -148,6 +148,30 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
    before the last change describes the old code.
 4. **Only files inside the workspace are read** through `path`; anything else is refused.
 
+## Plans
+
+1. **Validation is syntactic, not a compile.** An edit is checked to leave the file parseable, not
+   to type-check: a call to a method that does not exist, or a record constructor with the wrong
+   number of arguments, passes. The compile check comes with implementation (M6).
+2. **Quotes must match exactly once in the current file.** Two identical lines need more context in
+   the quote; the hint for near misses ignores whitespace only.
+3. **Decisions are enforced only through `forbid` path globs.** A decision in words ("reuse
+   ApprovalEvent") is shown to every version but checked only by the model.
+4. **Cross-service effects are found through the index:** callers and injectors in another module,
+   and consumers of messages a changed class sends. A payload read by a service outside the
+   workspace is not seen.
+5. **Feedback reaches a revision in two ways:** typed in the form's "Request changes" box (recorded
+   by agentideate itself), or said in the chat, which the agent must pass on as `feedback`; the
+   second is not verified.
+6. **The in-chat form depends on the Copilot plugin supporting MCP elicitation.** That has not been
+   checked on a real IntelliJ install yet; `setup` shows what the last connected plugin declared.
+   Without it, approval relies on Copilot's confirmation of the tool call, which a developer can
+   set to "always allow": then the agent could approve its own plan. Teams that cannot accept that
+   use `--approval terminal`.
+7. **Only the latest version can be approved**, and an approval covers its exact content (by hash);
+   any revision clears it.
+8. **Plans live on one machine,** under `~/.agentideate`; they are not shared with teammates.
+
 ## Workspace
 
 1. **`setup` does not edit `mcp.json`.** It prints the entry to paste. The menu path it names for
@@ -175,7 +199,7 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
    opened all of them, or might have opened more. M4's benchmark compares real agent runs with and
    without agentideate.
 3. **The tool definitions are a fixed cost.** Copilot sends every MCP tool's name, description and
-   argument schema with each agent request: about 1,300 tokens for agentideate's 9 tools. One
+   argument schema with each agent request: about 1,800 tokens for agentideate's 12 tools. One
    avoided file read usually covers it; descriptions are kept short for this reason. If credits are
    counted per request rather than per token, it adds no requests.
 4. **The overview cites only the files it names** (controllers, applications, config), although it

@@ -49,6 +49,7 @@ final class Setup {
         }
         ok &= homeOk;
         out.println("  State    " + home.dir() + (homeOk ? "  writable  OK" : "  NOT WRITABLE: set AGENTIDEATE_HOME to a writable folder"));
+        out.println("  Copilot  " + lastClient(home));
         out.println();
 
         ObjectNode root = new ObjectMapper().createObjectNode();
@@ -70,6 +71,26 @@ final class Setup {
         out.println("If mcp.json already has a \"servers\" block, add only the \"agentideate\" entry to it.");
         out.println("Then restart IntelliJ and switch Copilot Chat to Agent mode; its tools list shows agentideate.");
         return ok ? 0 : 1;
+    }
+
+    /**
+     * What the last MCP client to start agentideate declared, from {@code client.json}: tells a
+     * developer whether their Copilot plugin can show plan approval buttons in the chat.
+     */
+    static String lastClient(AppHome home) {
+        Path file = home.dir().resolve("client.json");
+        if (!Files.isRegularFile(file)) {
+            return "not connected yet (after the first Copilot chat with agentideate, setup shows what it supports)";
+        }
+        try {
+            var c = new ObjectMapper().readTree(file.toFile());
+            return c.path("name").asText("?") + " " + c.path("version").asText("") + ", last seen " + c.path("seen").asText("?")
+                    + "; approval buttons in the chat: " + (c.path("elicitation").asBoolean()
+                    ? "supported"
+                    : "NOT supported, so approvals use Copilot's tool confirmation (or --approval terminal)");
+        } catch (IOException e) {
+            return "client.json unreadable: " + e.getMessage();
+        }
     }
 
     /** The Java running now: the same one will work from mcp.json. */

@@ -185,8 +185,13 @@ From a user story, the model drafts a plan. agentideate grounds it and holds it:
 5. Each new version is checked against the ledger; touching something a decision ruled out is rejected.
 6. Absence is explicit, so "not found" is never filled with an invention.
 
-Approval is a real human action: a button on a local page (127.0.0.1 only) that the server opens.
-The agent cannot approve its own plan.
+Approval is a real human action. As built (M5), the local page was dropped (local pages are blocked
+on the team's machines) in favour of a form inside the Copilot chat: `plan_approve` sends an MCP
+`elicitation/create` request, the client draws *Approve vN* / *Request changes*, and the answer goes
+from the client to agentideate without passing through the model. A client without elicitation
+falls back to its own confirmation of the (non-read-only) tool call, recorded as a weaker approval;
+`--approval terminal` makes `agentideate approve` in a terminal the only way. The MCP server runs
+requests on a worker thread so a tool can wait for the form while the reader keeps receiving.
 
 ### 3. Implement
 
@@ -249,7 +254,7 @@ plan and goes through the same gate.
 | **M2** | Spring config reading (YAML subset, properties) with placeholder resolution; Kafka/RabbitMQ/JMS and Spring Cloud Stream (functional) producer-consumer map across services; build-file dependencies; entity → table/collection, repositories, migrations, datasources; reverse index; `messaging_map`, `data_map`, `impact_of`; Kafka hops in `endpoint_flow` | **done** |
 | **M3** | Workflow 1 threads (relatedness by cited files and words, same branch, 6 h window; no repeats inside a thread; invalidation by file hash, including whole call trees; `thread_recall`), `slice_for_task`, `compress_log` (logs and JUnit XML) | **done** |
 | **M4** | `bench` (tasks with expected facts vs the files that hold them; a lower-bound comparison, runnable on any repo), `report` (ledger summary), `setup` (prints the mcp.json entry, checks the machine), release workflow and `./gradlew release` (jar, SHA-256, CycloneDX SBOM), benchmark in CI | **done** |
-| M5 | Workflow 2: plan contract, validation, decision ledger, approval page | |
+| **M5** | Workflow 2: plan contract (edit by exact quote / add / delete, with reasons and evidence), validation against the code on every version (exact-once match, syntax after edit, package/type of new files, references of deleted files, evidence, decisions, cross-service effects), revision by patch, decision ledger, approval as an in-chat form (MCP elicitation) with Copilot's tool confirmation as fallback and a terminal-only mode; `plan_submit`, `plan_show`, `plan_approve`; CLI `plans`, `plan`, `approve`, `call` | **done** |
 | M6 | Workflow 3: implement, verify, rollback, audit | |
 | M7 | Workflows 4 and 5: review, unit tests | |
 | M8 | Workflow 6: debug | |

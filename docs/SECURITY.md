@@ -33,9 +33,28 @@ source code to answer structural questions about the open project.
   - `threads.json`: conversation threads, which hold the questions asked (tool arguments such as a
     route path or a task description), the answer lines already given, and the paths of cited files.
     The 30 most recent threads are kept.
+  - `plans/p*.json`: plans the agent proposed (the code it quotes and proposes), their versions,
+    decisions and approvals.
+  - `client.json` (in the home folder itself): the name, version and capabilities of the last MCP
+    client that started agentideate, so `setup` can report them.
 - **Nothing in the project.** The current version is entirely read-only with respect to source
-  code. Later versions that can apply an approved change will write only after two explicit
-  developer actions, only inside the registered project folders, with an audit log.
+  code: a plan is a proposal stored under `~/.agentideate`, and approving it writes nothing either.
+  The next version, which applies an approved plan, will write only after the approval and an
+  explicit start, only inside the registered project folders, with an audit log.
+
+## Approval
+
+A plan is approved by the developer, never by the agent:
+
+- through a form the Copilot client shows in the chat (MCP elicitation); the answer travels from the
+  client to agentideate without passing through the model;
+- or, when the client cannot show forms, through the client's own confirmation of the
+  `plan_approve` call (the tool declares itself as not read-only so the client asks); a developer who
+  sets that tool to "always allow" gives this up;
+- or, with `--approval terminal`, only by `java -jar agentideate.jar approve <plan>` typed in a terminal.
+
+A version that does not validate against the current code cannot be approved, and an approval
+covers exactly the approved content (by hash).
 
 ## What it never does
 

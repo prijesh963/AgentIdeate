@@ -6,6 +6,7 @@ import dev.agentideate.AppHome;
 import dev.agentideate.TestSupport;
 import dev.agentideate.tools.ToolRegistry;
 import dev.agentideate.workspace.WorkspaceService;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -73,15 +74,17 @@ class McpServerTest {
         JsonNode r = session(List.of(), INIT, """
                 {"jsonrpc":"2.0","id":2,"method":"tools/list"}""").get(1);
         JsonNode tools = r.at("/result/tools");
-        assertEquals(9, tools.size());
+        assertEquals(12, tools.size());
         for (JsonNode t : tools) {
-            boolean threaded = !List.of("repo_overview", "compress_log", "thread_recall").contains(t.get("name").asText());
+            boolean threaded = !List.of("repo_overview", "compress_log", "thread_recall", "plan_submit", "plan_show", "plan_approve")
+                    .contains(t.get("name").asText());
             assertEquals(threaded, t.at("/inputSchema/properties/thread").isObject(), t.get("name").asText());
         }
         for (JsonNode t : tools) {
             assertEquals("object", t.at("/inputSchema/type").asText());
             assertTrue(t.at("/inputSchema/properties/repo").isObject(), t.toString());
-            assertTrue(t.at("/annotations/readOnlyHint").asBoolean(), t.toString());
+            // only plan_approve is not read-only: that is what makes a client without forms confirm it with the developer
+            assertEquals(!t.get("name").asText().equals("plan_approve"), t.at("/annotations/readOnlyHint").asBoolean(), t.toString());
             assertTrue(t.get("description").asText().length() < 220, "descriptions are paid for every turn: " + t);
         }
         assertEquals("query", tools.get(1).at("/inputSchema/required/0").asText());
@@ -147,5 +150,64 @@ class McpServerTest {
     void noRootsRequestWhenTheClientDoesNotSupportThem() throws Exception {
         List<JsonNode> msgs = session(List.of(), INIT, "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}");
         assertEquals(1, msgs.size());
+    }
+
+    @Test
+    void aPlanIsApprovedThroughAFormTheClientShowsInTheChat(@TempDir Path tmp) throws Exception {
+        Path repo = TestSupport.copyTree(TestSupport.shop(), tmp.resolve("shop"));
+        workspaces = new WorkspaceService(new AppHome(home), List.of(repo), null);
+        java.io.PipedOutputStream toServer = new java.io.PipedOutputStream();
+        java.io.PipedInputStream serverIn = new java.io.PipedInputStream(toServer, 1 << 16);
+        java.io.PipedInputStream fromServer = new java.io.PipedInputStream(1 << 16);
+        java.io.PipedOutputStream serverOut = new java.io.PipedOutputStream(fromServer);
+        McpServer server = new McpServer(ToolRegistry.standard(workspaces), workspaces, serverIn, serverOut,
+                new PrintStream(new ByteArrayOutputStream(), true, StandardCharsets.UTF_8));
+        Thread t = new Thread(() -> {
+            try {
+                server.run();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        });
+        t.start();
+        java.io.BufferedReader replies = new java.io.BufferedReader(new java.io.InputStreamReader(fromServer, StandardCharsets.UTF_8));
+        java.util.function.Consumer<String> say = line -> {
+            try {
+                toServer.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+                toServer.flush();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        };
+        say.accept("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"initialize\",\"params\":{\"capabilities\":{\"elicitation\":{}},\"clientInfo\":{\"name\":\"copilot-sim\",\"version\":\"9\"}}}");
+        assertEquals(1, JSON.readTree(replies.readLine()).get("id").asInt());
+        ObjectNode submit = JSON.createObjectNode();
+        submit.put("jsonrpc", "2.0").put("id", 2).put("method", "tools/call");
+        ObjectNode args = submit.putObject("params").put("name", "plan_submit").putObject("arguments");
+        args.put("title", "Discount").put("understanding", "10% off");
+        args.putArray("changes").addObject().put("kind", "edit")
+                .put("file", "order-service/src/main/java/com/shop/order/service/OrderServiceImpl.java")
+                .put("before", "        order.setTotal(total(price.amount(), request.quantity()));")
+                .put("after", "        order.setTotal(total(price.amount(), request.quantity()).multiply(new java.math.BigDecimal(\"0.9\")));");
+        say.accept(JSON.writeValueAsString(submit));
+        JsonNode submitted = JSON.readTree(replies.readLine());
+        assertTrue(submitted.at("/result/content/0/text").asText().contains("valid"), submitted.toString());
+
+        say.accept("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":{\"name\":\"plan_approve\",\"arguments\":{\"plan\":\"p1\"}}}");
+        JsonNode form = JSON.readTree(replies.readLine());
+        assertEquals("elicitation/create", form.get("method").asText(), "the server asks the client to show a form");
+        assertTrue(form.at("/params/message").asText().startsWith("Approve plan p1 v1"), form.toString());
+        // the developer clicks Approve in the chat; the answer goes to the server, not to the model
+        say.accept("{\"jsonrpc\":\"2.0\",\"id\":" + JSON.writeValueAsString(form.get("id"))
+                + ",\"result\":{\"action\":\"accept\",\"content\":{\"decision\":\"approve\"}}}");
+        JsonNode approved = JSON.readTree(replies.readLine());
+        assertEquals(3, approved.get("id").asInt());
+        assertTrue(approved.at("/result/content/0/text").asText().startsWith("Approved by the developer in the chat: p1 v1."), approved.toString());
+        toServer.close();
+        t.join(10_000);
+
+        JsonNode clientInfo = JSON.readTree(home.resolve("client.json").toFile());
+        assertEquals("copilot-sim", clientInfo.get("name").asText());
+        assertTrue(clientInfo.get("elicitation").asBoolean());
     }
 }
