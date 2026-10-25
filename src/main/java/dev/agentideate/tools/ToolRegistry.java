@@ -58,6 +58,9 @@ public final class ToolRegistry {
         r.add(new PlanApproveTool(r));
         r.add(new PlanImplementTool(r));
         r.add(new PlanRollbackTool(r));
+        r.add(new PlanReviewTool(r));
+        r.add(new TestPackTool());
+        r.add(new TestRunTool(r));
         return r;
     }
 

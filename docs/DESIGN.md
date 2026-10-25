@@ -217,6 +217,15 @@ check catches edits made outside `implement_plan`.
   findings required to cite real lines.
 - Verdict: conforms / deviates (with list) / incomplete. Deviations go back to Workflow 2.
 
+As built (`plan_review`): each file of the run must still hash to what the run wrote; if not, each
+change's new text (and an edit's old text) is looked for to say what drifted. Every approved change
+must be in the run. Git status now, minus what was already changed before the run (recorded in the
+run) and the plan's own files, is what changed outside the plan. Cross-service effects are re-checked.
+The answer then carries a review pack: each change's region as it is on disk, the methods it falls
+in, their callers and tests, and a short checklist. Findings come back as `{file, line, text,
+severity}`; each is checked against a real file and line before it is recorded (reviews/<plan>.json
+and the audit log), so a review cannot cite code that is not there.
+
 ### 5. Unit tests
 
 Changed methods and their existing tests come from the graph; the repo's conventions (JUnit 4/5,
@@ -224,6 +233,17 @@ Mockito, Testcontainers, EmbeddedKafka, naming) come from `build.gradle` and sib
 model writes tests from a compact pack; they go through the same approval gate; only those tests
 run; failures come back compressed; a bounded fix loop (max 3) then an honest report. Optional
 JaCoCo coverage of the changed lines.
+
+As built: `test_pack` gives, per changed method (located in the written code) or named
+Class/Class#method: its source, the injected collaborators it calls (to mock), the existing test
+class to extend with its mock fields and test names, or the path for a new one, and the module's
+conventions read from its tests (JUnit 4/5, Mockito and how it is wired, AssertJ/Hamcrest, Spring
+test slices, `@MockBean`, Testcontainers, `@EmbeddedKafka`, the class suffix) with the shortest
+existing test as the example; from the build's test dependencies when there are no tests; "not found"
+when there is no framework at all. Tests are written as a plan. `test_run` runs only the test
+classes of the plan's changes (Gradle `--tests`, Maven `-Dtest`), reads only the JUnit reports
+written by that run, and counts failed runs per plan: after 3 it refuses until the developer resets
+the count in a terminal (`agentideate tests p1 --reset`). JaCoCo coverage is not done.
 
 ### 6. Debug
 
@@ -256,6 +276,6 @@ plan and goes through the same gate.
 | **M4** | `bench` (tasks with expected facts vs the files that hold them; a lower-bound comparison, runnable on any repo), `report` (ledger summary), `setup` (prints the mcp.json entry, checks the machine), release workflow and `./gradlew release` (jar, SHA-256, CycloneDX SBOM), benchmark in CI | **done** |
 | **M5** | Workflow 2: plan contract (edit by exact quote / add / delete, with reasons and evidence), validation against the code on every version (exact-once match, syntax after edit, package/type of new files, references of deleted files, evidence, decisions, cross-service effects), revision by patch, decision ledger, approval as an in-chat form (MCP elicitation) with Copilot's tool confirmation as fallback and a terminal-only mode; `plan_submit`, `plan_show`, `plan_approve`; CLI `plans`, `plan`, `approve`, `call` | **done** |
 | **M6** | Workflow 3: Start gate (in-chat form / tool confirmation / terminal), approval and file-hash gate, pre-flight re-validation, all-or-nothing atomic writes with backups and rollback, CRLF kept, re-read verification, git status before/after, compile check with the module's own build (rolled back on compile errors), run records, audit log, `plan_implement`, `plan_rollback`, CLI `implement`/`rollback`; allowlisted command runner | **done** |
-| M7 | Workflows 4 and 5: review, unit tests | |
+| **M7** | Workflows 4 and 5: `plan_review` (conformance verdict from hashes, the run's git baseline and the approved version; review pack of changed code, callers and tests; findings checked against real lines and recorded), `test_pack` (changed methods, mocks, test class, conventions, example), `test_run` (only affected tests, fresh JUnit reports, 3 failed runs then stop until a terminal reset); allowlist gains test tasks filtered by class name; CLI `review`/`testpack`/`tests` | **done** |
 | M8 | Workflow 6: debug | |
 | later | OpenRewrite codemods for mechanical changes | |

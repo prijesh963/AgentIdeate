@@ -1,14 +1,12 @@
 package dev.agentideate.implement;
 
+import dev.agentideate.exec.BuildTool;
 import dev.agentideate.exec.CommandRunner;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Compiles the modules a run changed with their own build: the Gradle wrapper (or {@code gradle})
@@ -23,8 +21,6 @@ final class CompileCheck {
             return status.equals("failed");
         }
     }
-
-    private static final boolean WINDOWS = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
 
     private CompileCheck() {
     }
@@ -45,37 +41,12 @@ final class CompileCheck {
     }
 
     static List<String> command(Path root, Path moduleDir) {
-        boolean gradle = Files.exists(moduleDir.resolve("build.gradle")) || Files.exists(moduleDir.resolve("build.gradle.kts"));
-        boolean maven = Files.exists(moduleDir.resolve("pom.xml"));
-        if (gradle) {
-            Path wrapper = findUp(root, moduleDir, WINDOWS ? "gradlew.bat" : "gradlew");
-            List<String> cmd = new ArrayList<>();
-            cmd.add(wrapper != null ? wrapper.toString() : WINDOWS ? "gradle.bat" : "gradle");
-            cmd.addAll(List.of("-p", moduleDir.toString(), "compileJava", "compileTestJava", "--console=plain"));
-            return cmd;
-        }
-        if (maven) {
-            Path wrapper = findUp(root, moduleDir, WINDOWS ? "mvnw.cmd" : "mvnw");
-            List<String> cmd = new ArrayList<>();
-            cmd.add(wrapper != null ? wrapper.toString() : WINDOWS ? "mvn.cmd" : "mvn");
-            cmd.addAll(List.of("-q", "-B", "-f", moduleDir.resolve("pom.xml").toString(), "test-compile"));
-            return cmd;
-        }
-        return null;
-    }
-
-    /** The nearest {@code name} from the module up to the root (a multi-module build keeps its wrapper at the top). */
-    private static Path findUp(Path root, Path from, String name) {
-        for (Path d = from; d != null && d.startsWith(root); d = d.getParent()) {
-            if (Files.isRegularFile(d.resolve(name))) {
-                return d.resolve(name);
-            }
-        }
-        return null;
+        BuildTool build = BuildTool.of(root, moduleDir);
+        return build == null ? null : build.compileCommand();
     }
 
     /** Whether build output holds compiler errors (as opposed to, say, a dependency that could not be downloaded). */
     static boolean hasCompileErrors(String output) {
-        return output.lines().anyMatch(l -> l.matches(".*\\.java:\\d+: error: .*") || l.matches("^\\[ERROR] .*\\.java:\\[\\d+.*"));
+        return BuildTool.hasCompileErrors(output);
     }
 }

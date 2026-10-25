@@ -379,6 +379,23 @@ public final class PlanValidator {
      * a payload, an injected type, a topic's consumers. Worth a look before approving; not a problem
      * in itself, because the change may be compatible.
      */
+    /**
+     * Code in other services that depends on what a version changes but that the version leaves
+     * alone; used again by review, against the code as implemented. The version's changes must
+     * already be resolved (root and path set), as validation leaves them.
+     */
+    public List<String> otherServiceEffects(PlanVersion v) {
+        Set<String> touched = new LinkedHashSet<>();
+        for (PlanChange c : v.changes) {
+            if (c.root != null && c.path != null) {
+                touched.add(c.root + ":" + c.path);
+            }
+        }
+        List<String> out = new ArrayList<>();
+        checkOtherServices(v, touched, out);
+        return out;
+    }
+
     private void checkOtherServices(PlanVersion v, Set<String> touched, List<String> warnings) {
         ReverseIndex rev = graph.reverse();
         Integrations integ = graph.integrations();
@@ -505,7 +522,7 @@ public final class PlanValidator {
         return line;
     }
 
-    static String sha256(byte[] bytes) {
+    public static String sha256(byte[] bytes) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
         } catch (NoSuchAlgorithmException e) {

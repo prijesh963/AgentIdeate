@@ -6,13 +6,7 @@ import dev.agentideate.graph.CodeGraph.TypeNode;
 import dev.agentideate.index.SourceFile;
 import dev.agentideate.workspace.Workspace;
 import dev.agentideate.workspace.WorkspaceService;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NodeList;
 
-import javax.xml.XMLConstants;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
@@ -20,7 +14,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
 
 /**
  * Reduces build and test output to what failed and where. Reads, in order of preference: a log
@@ -79,7 +72,7 @@ final class CompressLogTool implements Tool {
     }
 
     /** A class (and line) in a stack frame, as {@code path:line} when the class is in the workspace. */
-    private static String locate(CodeGraph graph, Answer out, String classLine) {
+    static String locate(CodeGraph graph, Answer out, String classLine) {
         int colon = classLine.lastIndexOf(':');
         String cls = classLine.substring(0, colon).replaceAll("\\$.*", "");
         String line = classLine.substring(colon + 1);
@@ -97,7 +90,7 @@ final class CompressLogTool implements Tool {
      * indexed file whose path the logged one ends with (a log from CI or another machine); else as
      * written.
      */
-    private static String display(Workspace ws, CodeGraph graph, Answer out, String absolute) {
+    static String display(Workspace ws, CodeGraph graph, Answer out, String absolute) {
         String normalized = absolute.replace('\\', '/');
         try {
             Path p = Path.of(absolute).toAbsolutePath().normalize();
@@ -178,7 +171,7 @@ final class CompressLogTool implements Tool {
             for (String m : modules) {
                 Path base = m.isEmpty() ? r.path() : r.path().resolve(m);
                 for (String dir : List.of("build/test-results", "target/surefire-reports", "target/failsafe-reports")) {
-                    collectXml(base.resolve(dir), reports);
+                    JUnitReports.collect(base.resolve(dir), 0, reports);
                 }
             }
         }
@@ -187,85 +180,15 @@ final class CompressLogTool implements Tool {
                     + "Run the tests, or pass the build output as path or text.");
             return;
         }
-        int tests = 0;
-        int failed = 0;
-        long newest = 0;
-        long bytes = 0;
-        List<String> lines = new ArrayList<>();
-        DocumentBuilder builder = secureBuilder();
-        for (Path report : reports) {
-            try {
-                bytes += Files.size(report);
-                newest = Math.max(newest, Files.getLastModifiedTime(report).toMillis());
-                Document doc = builder.parse(report.toFile());
-                NodeList cases = doc.getElementsByTagName("testcase");
-                for (int i = 0; i < cases.getLength(); i++) {
-                    Element tc = (Element) cases.item(i);
-                    tests++;
-                    Element problem = first(tc, "failure");
-                    String kind = "FAIL";
-                    if (problem == null) {
-                        problem = first(tc, "error");
-                        kind = "ERROR";
-                    }
-                    if (problem == null) {
-                        continue;
-                    }
-                    failed++;
-                    String message = problem.getAttribute("message");
-                    if (message.isBlank()) {
-                        message = problem.getAttribute("type");
-                    }
-                    List<String> trace = digest.digest(problem.getTextContent());
-                    String at = trace.stream().filter(l -> l.trim().startsWith("at ")).findFirst().map(String::trim).orElse("");
-                    lines.add("  " + kind + " " + LogDigest.simpleName(tc.getAttribute("classname")) + "." + tc.getAttribute("name")
-                            + "  " + LogDigest.shorten(message.lines().findFirst().orElse("")) + (at.isEmpty() ? "" : "  " + at));
-                }
-            } catch (Exception e) {
-                lines.add("  (unreadable report " + report.getFileName() + ": " + e.getMessage() + ")");
-            }
-        }
-        out.input(bytes, reports.size() + " JUnit report" + (reports.size() == 1 ? "" : "s"));
-        long ageMin = (System.currentTimeMillis() - newest) / 60_000;
-        out.line("JUnit reports: " + reports.size() + " files, " + tests + " tests, " + failed + " failed"
+        JUnitReports.Summary sum = JUnitReports.read(reports, digest);
+        out.input(sum.bytes(), reports.size() + " JUnit report" + (reports.size() == 1 ? "" : "s"));
+        long ageMin = (System.currentTimeMillis() - sum.newest()) / 60_000;
+        out.line("JUnit reports: " + reports.size() + " files, " + sum.tests() + " tests, " + sum.failed() + " failed"
                 + " (newest written " + (ageMin < 1 ? "just now" : ageMin + " min ago") + "; older reports may predate your last change)");
-        lines.stream().limit(LogDigest.MAX_ITEMS).forEach(out::line);
-        if (lines.size() > LogDigest.MAX_ITEMS) {
-            out.line("  +" + (lines.size() - LogDigest.MAX_ITEMS) + " more");
+        sum.lines().stream().limit(LogDigest.MAX_ITEMS).forEach(out::line);
+        if (sum.lines().size() > LogDigest.MAX_ITEMS) {
+            out.line("  +" + (sum.lines().size() - LogDigest.MAX_ITEMS) + " more");
         }
-    }
-
-    private static void collectXml(Path dir, List<Path> out) {
-        if (!Files.isDirectory(dir)) {
-            return;
-        }
-        try (Stream<Path> s = Files.walk(dir, 4)) {
-            s.filter(p -> p.getFileName().toString().endsWith(".xml") && p.getFileName().toString().startsWith("TEST-"))
-                    .forEach(out::add);
-        } catch (IOException ignored) {
-            // an unreadable report folder is skipped
-        }
-    }
-
-    /** XML parsing with DTDs and external entities off: a report file must not be able to read other files. */
-    static DocumentBuilder secureBuilder() throws ToolException {
-        try {
-            DocumentBuilderFactory f = DocumentBuilderFactory.newInstance();
-            f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-            f.setFeature("http://xml.org/sax/features/external-general-entities", false);
-            f.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
-            f.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
-            f.setXIncludeAware(false);
-            f.setExpandEntityReferences(false);
-            return f.newDocumentBuilder();
-        } catch (Exception e) {
-            throw new ToolException("XML parser unavailable: " + e.getMessage());
-        }
-    }
-
-    private static Element first(Element parent, String tag) {
-        NodeList l = parent.getElementsByTagName(tag);
-        return l.getLength() == 0 ? null : (Element) l.item(0);
     }
 
     static String kb(long chars) {
