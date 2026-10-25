@@ -34,10 +34,15 @@ class IntegrationsTest {
     @Test
     void kafkaProducersAndConsumersAcrossServices() {
         assertEquals(List.of(
+                "kafka ? producer ShippingFunctions#heartbeat",
+                "kafka delivery.notices producer ShippingFunctions#notifyDelivery",
                 "kafka order.cancelled consumer OrderCancelledListener#onOrderCancelled group=inventory",
                 "kafka order.cancelled producer OrderEventPublisher#publishCancelled",
                 "kafka order.created consumer OrderCreatedListener#onOrderCreated group=inventory",
-                "kafka order.created producer OrderEventPublisher#publishCreated"), describe(shop.integrations().messages()));
+                "kafka order.created consumer ShippingFunctions#shipOrder group=shipping",
+                "kafka order.created producer OrderEventPublisher#publishCreated",
+                "kafka shipment.dispatched consumer ShippingFunctions#notifyDelivery group=notifications",
+                "kafka shipment.dispatched producer ShipmentService#createShipment"), describe(shop.integrations().messages()));
     }
 
     @Test
@@ -46,8 +51,9 @@ class IntegrationsTest {
         Message created = integ.messages().stream()
                 .filter(m -> m.producer() && m.channel().equals("order.created")).findFirst().orElseThrow();
         List<Message> consumers = integ.counterparts(created);
-        assertEquals(1, consumers.size());
-        assertEquals("inventory-service", shop.moduleKey(consumers.get(0).owner().file()));
+        assertEquals(List.of("inventory-service", "shipping-service"),
+                consumers.stream().map(c -> shop.moduleKey(c.owner().file())).sorted().toList(),
+                "the @KafkaListener and the Spring Cloud Stream consumer both receive a KafkaTemplate send");
     }
 
     @Test

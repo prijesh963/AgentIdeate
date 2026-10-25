@@ -94,7 +94,7 @@ passes all of them. Or pin them in `mcp.json`:
 | `repo_overview` | "What is in this repo?" | services, build tool, REST routes by controller, beans, datastores and tables, Kafka topics produced/consumed, Feign calls out, config files |
 | `locate` | "Where is stock reserved?", "Is invoice approval already implemented?" | matching classes, methods, routes, topics, tables, config files with `file:line`, or a plain **not found** with what was searched |
 | `endpoint_flow` | "How does `PUT /api/orders/{id}/cancel` work?" | the call tree from controller through services, interfaces resolved to implementations, Feign calls and Kafka/RabbitMQ/JMS messages followed into the other service |
-| `messaging_map` | "Who consumes `order.created`?" | every topic/queue with its producers and consumers across services; topic names resolved from constants and `application.yml` |
+| `messaging_map` | "Who consumes `order.created`?" | every topic/queue with its producers and consumers across services (`KafkaTemplate`, `@KafkaListener`, RabbitMQ, JMS, Spring Cloud Stream functions and `StreamBridge`); topic names resolved from constants and `application.yml` |
 | `data_map` | "Which tables does order-service use?" | per service: datasource, entity → table/collection, repositories, Flyway/Liquibase migrations, direct `JdbcTemplate`/`MongoTemplate` use |
 | `impact_of` | "What breaks if I change `OrderEntity`?" | callers, injectors, the routes and Kafka consumers it is reached from, messages it sends, tables and migrations, tests, across services |
 

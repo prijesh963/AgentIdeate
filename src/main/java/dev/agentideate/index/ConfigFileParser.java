@@ -41,6 +41,27 @@ public final class ConfigFileParser {
         return springName && (name.endsWith(".yml") || name.endsWith(".yaml") || name.endsWith(".properties"));
     }
 
+    public static boolean isBuildFile(String path) {
+        String name = path.substring(path.lastIndexOf('/') + 1);
+        return name.equals("build.gradle") || name.equals("build.gradle.kts") || name.equals("pom.xml");
+    }
+
+    private static final Pattern GRADLE_COORDINATE = Pattern.compile("['\"]([\\w.\\-]+):([\\w.\\-]+)(?::[^'\"]*)?['\"]");
+    private static final Pattern POM_ARTIFACT = Pattern.compile("<artifactId>\\s*([\\w.\\-]+)\\s*</artifactId>");
+
+    /**
+     * Artifact ids a build file names: {@code 'group:artifact:version'} strings in Gradle,
+     * {@code <artifactId>} in Maven. Version catalogs ({@code libs.x.y}) are not resolved.
+     */
+    public static List<String> dependencies(String path, String content) {
+        Set<String> out = new LinkedHashSet<>();
+        Matcher m = (path.endsWith("pom.xml") ? POM_ARTIFACT : GRADLE_COORDINATE).matcher(content);
+        while (m.find()) {
+            out.add(m.group(path.endsWith("pom.xml") ? 1 : 2));
+        }
+        return List.copyOf(out);
+    }
+
     public static boolean isMigration(String path) {
         String lower = path.toLowerCase(Locale.ROOT);
         return lower.endsWith(".sql") || (lower.endsWith(".xml") && (lower.contains("changelog") || lower.contains("liquibase")));

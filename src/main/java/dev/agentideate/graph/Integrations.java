@@ -78,10 +78,14 @@ public final class Integrations {
     private final Map<TypeNode, Repo> repoByType = new IdentityHashMap<>();
     private final Map<String, List<Store>> stores = new TreeMap<>();
     private final List<DirectAccess> directAccess = new ArrayList<>();
+    private final Map<String, List<String>> dependenciesByModule = new LinkedHashMap<>();
+    private final CloudStream stream;
 
     Integrations(CodeGraph graph) {
         this.graph = graph;
         collectProperties();
+        collectDependencies();
+        this.stream = new CloudStream(graph, this);
         for (TypeNode n : graph.types()) {
             if (n.file().isTest()) {
                 continue;
@@ -99,6 +103,7 @@ public final class Integrations {
                 collectRepo(n);
             }
         }
+        stream.collect(messages);
         propertiesByModule.forEach((module, props) -> stores.put(module, storesFrom(props)));
     }
 
@@ -123,6 +128,35 @@ public final class Integrations {
 
     private static String fileName(SourceFile f) {
         return f.path().substring(f.path().lastIndexOf('/') + 1);
+    }
+
+    private void collectDependencies() {
+        Map<String, List<String>> rootLevel = new LinkedHashMap<>();
+        for (SourceFile f : graph.files()) {
+            if (!f.dependencies().isEmpty()) {
+                dependenciesByModule.computeIfAbsent(graph.moduleKey(f), k -> new ArrayList<>()).addAll(f.dependencies());
+                if (f.module().isEmpty()) {
+                    rootLevel.computeIfAbsent(f.root(), k -> new ArrayList<>()).addAll(f.dependencies());
+                }
+            }
+        }
+        // a multi-module build often declares shared dependencies in the root build file
+        for (SourceFile f : graph.files()) {
+            String module = graph.moduleKey(f);
+            if (!f.module().isEmpty() && rootLevel.containsKey(f.root())) {
+                List<String> deps = dependenciesByModule.computeIfAbsent(module, k -> new ArrayList<>());
+                for (String d : rootLevel.get(f.root())) {
+                    if (!deps.contains(d)) {
+                        deps.add(d);
+                    }
+                }
+            }
+        }
+    }
+
+    /** Artifact ids declared by a module's build file, plus its root build file's. */
+    public List<String> dependencies(String moduleKey) {
+        return dependenciesByModule.getOrDefault(moduleKey, List.of());
     }
 
     public Map<String, String> properties(String moduleKey) {
@@ -246,6 +280,8 @@ public final class Integrations {
                 raw = "?";
             }
             messages.add(new Message("rabbitmq", resolveValue(raw, n), "producer", n, m, c.line(), null, detail));
+        } else if (c.scopeType().equals("StreamBridge") && c.method().equals("send")) {
+            messages.add(stream.streamBridge(module, args.size() >= 2 ? args.get(0) : "?", n, m, c.line()));
         } else if (JMS_TEMPLATES.contains(c.scopeType())) {
             String raw = args.size() >= 2 ? args.get(0)
                     : properties(module).getOrDefault("spring.jms.template.default-destination", "?");
@@ -422,7 +458,8 @@ public final class Integrations {
         if (first(p, "spring.data.redis.host", "spring.redis.host", "spring.data.redis.url", "spring.redis.url") != null) {
             out.add(new Store("redis", "", "datastore"));
         }
-        if (p.containsKey("spring.kafka.bootstrap-servers")) {
+        if (p.containsKey("spring.kafka.bootstrap-servers")
+                || p.keySet().stream().anyMatch(k -> k.startsWith("spring.cloud.stream.kafka.binder."))) {
             out.add(new Store("kafka", "", "broker"));
         }
         if (first(p, "spring.rabbitmq.host", "spring.rabbitmq.addresses") != null) {

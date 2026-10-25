@@ -35,7 +35,7 @@ class ToolsTest {
         ToolRegistry.Outcome o = call("repo_overview");
         assertFalse(o.error(), o.text());
         String t = o.text();
-        assertTrue(t.contains("3 Spring Boot services"), t);
+        assertTrue(t.contains("4 Spring Boot services"), t);
         assertTrue(t.contains("Service order-service [gradle]"), t);
         assertTrue(t.contains("Service inventory-service [maven]"), t);
         assertTrue(t.contains("Service pricing-service [gradle]"), t);
@@ -104,7 +104,7 @@ class ToolsTest {
     void everyAnswerCarriesTheSavingsFooterAndIsLedgered() throws Exception {
         String t = call("endpoint_flow", "path", "/api/orders/{id}", "method", "GET").text();
         assertTrue(t.lines().reduce((a, b) -> b).orElseThrow()
-                .matches("-- agentideate: from \\d+ source files \\(~[\\d.k]+ tokens to open\\) -> ~[\\d.k]+ tokens here; index 29 Java files.*"), t);
+                .matches("-- agentideate: from \\d+ source files \\(~[\\d.k]+ tokens to open\\) -> ~[\\d.k]+ tokens here; index 35 Java files.*"), t);
         try (Stream<Path> s = Files.walk(home)) {
             Path ledger = s.filter(p -> p.getFileName().toString().equals("ledger.jsonl")).findFirst().orElseThrow();
             String row = Files.readAllLines(ledger).get(0);
@@ -145,7 +145,7 @@ class ToolsTest {
     void theRepoArgumentOverridesTheConfiguredRoots(@TempDir Path tmp) {
         ToolRegistry r = TestSupport.registry(home, tmp);
         String t = r.call("repo_overview", JSON.createObjectNode().put("repo", TestSupport.shop().toString())).text();
-        assertTrue(t.contains("3 Spring Boot services"), t);
+        assertTrue(t.contains("4 Spring Boot services"), t);
     }
 
     @Test
@@ -160,7 +160,7 @@ class ToolsTest {
     @Test
     void messagingMapPairsProducersWithConsumers() {
         String t = call("messaging_map").text();
-        assertTrue(t.startsWith("kafka order.cancelled\n  produced by  order-service  OrderEventPublisher#publishCancelled"), t);
+        assertTrue(t.contains("kafka order.cancelled\n  produced by  order-service  OrderEventPublisher#publishCancelled"), t);
         assertTrue(t.contains("  consumed by  inventory-service (group inventory)  OrderCancelledListener#onOrderCancelled"), t);
         String filtered = call("messaging_map", "channel", "created").text();
         assertFalse(filtered.contains("order.cancelled"), filtered);
@@ -220,7 +220,8 @@ class ToolsTest {
         String topic = call("impact_of", "target", "order.created").text();
         assertTrue(topic.startsWith("Impact of kafka order.created"), topic);
         assertTrue(topic.contains("Produced when (1):\n  route POST /api/orders  (order-service)"), topic);
-        assertTrue(topic.contains("Consumers (1):\n  inventory-service (group inventory)  OrderCreatedListener#onOrderCreated"), topic);
+        assertTrue(topic.contains("Consumers (2):\n  inventory-service (group inventory)  OrderCreatedListener#onOrderCreated"), topic);
+        assertTrue(topic.contains("  shipping-service (group shipping)  ShippingFunctions#shipOrder"), "a Stream consumer of a KafkaTemplate topic: " + topic);
 
         String table = call("impact_of", "target", "orders").text();
         assertTrue(table.startsWith("orders is the table of OrderEntity."), table);

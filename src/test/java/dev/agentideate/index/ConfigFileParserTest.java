@@ -127,6 +127,22 @@ class ConfigFileParserTest {
     }
 
     @Test
+    void buildFileDependencies() {
+        assertEquals(List.of("spring-cloud-stream", "spring-cloud-stream-binder-kafka", "lombok"),
+                ConfigFileParser.dependencies("svc/build.gradle", """
+                        implementation 'org.springframework.cloud:spring-cloud-stream'
+                        implementation "org.springframework.cloud:spring-cloud-stream-binder-kafka:4.1.3"
+                        compileOnly 'org.projectlombok:lombok'
+                        """));
+        assertEquals(List.of("spring-boot-starter-web"), ConfigFileParser.dependencies("build.gradle.kts",
+                "implementation(\"org.springframework.boot:spring-boot-starter-web\")\n"));
+        assertEquals(List.of("inventory", "spring-cloud-starter-stream-rabbit"), ConfigFileParser.dependencies("pom.xml",
+                "<artifactId>inventory</artifactId><dependency><artifactId> spring-cloud-starter-stream-rabbit </artifactId></dependency>"));
+        assertTrue(ConfigFileParser.isBuildFile("a/pom.xml"));
+        assertFalse(ConfigFileParser.isBuildFile("a/settings.gradle"));
+    }
+
+    @Test
     void whichFilesAreRead() {
         assertTrue(ConfigFileParser.isSpringConfig("svc/src/main/resources/application-dev.yml"));
         assertTrue(ConfigFileParser.isSpringConfig("bootstrap.properties"));

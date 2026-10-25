@@ -27,11 +27,11 @@ class WorkspaceIndexTest {
     void fullIndexFindsJavaAndConfigFilesAndModules() throws Exception {
         WorkspaceIndex index = new WorkspaceIndex(Workspace.of(List.of(repo())), tmp.resolve("state"));
         WorkspaceIndex.Stats s = index.refresh();
-        assertEquals(29, s.javaFiles());
+        assertEquals(35, s.javaFiles());
         assertEquals(s.files(), s.reparsed());
         assertEquals(0, s.parseErrors());
         assertTrue(s.changed());
-        assertEquals(List.of("inventory-service", "order-service", "pricing-service"),
+        assertEquals(List.of("inventory-service", "order-service", "pricing-service", "shipping-service"),
                 index.modules().get("shop").stream().sorted().toList());
         assertTrue(index.files().stream().anyMatch(f -> f.path().endsWith("application.yml")));
         assertTrue(index.files().stream().noneMatch(f -> f.path().endsWith("README.md")));
@@ -107,7 +107,7 @@ class WorkspaceIndexTest {
         WorkspaceIndex.Stats s = index.refresh();
         assertEquals(1, s.removed());
         assertEquals(1, s.reparsed());
-        assertEquals(29, s.javaFiles());
+        assertEquals(35, s.javaFiles());
     }
 
     @Test
@@ -117,7 +117,7 @@ class WorkspaceIndexTest {
         assertTrue(Files.isRegularFile(tmp.resolve("state/index.json")));
         WorkspaceIndex.Stats s = new WorkspaceIndex(Workspace.of(List.of(repo)), tmp.resolve("state")).refresh();
         assertEquals(0, s.reparsed());
-        assertEquals(29, s.javaFiles());
+        assertEquals(35, s.javaFiles());
     }
 
     @Test
@@ -137,7 +137,7 @@ class WorkspaceIndexTest {
         Files.createDirectories(repo.resolve(".git"));
         Files.writeString(repo.resolve(".git/config.xml"), "<x/>");
         WorkspaceIndex index = new WorkspaceIndex(Workspace.of(List.of(repo)), tmp.resolve("state"));
-        assertEquals(29, index.refresh().javaFiles());
+        assertEquals(35, index.refresh().javaFiles());
         assertTrue(index.files().stream().noneMatch(f -> f.path().startsWith(".git")));
     }
 

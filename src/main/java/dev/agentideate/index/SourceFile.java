@@ -14,10 +14,12 @@ import java.util.Map;
  * @param properties flattened keys of a Spring config file ({@code application*.yml/.properties}),
  *                   otherwise empty
  * @param tables     tables a SQL migration or Liquibase changelog creates or alters, otherwise empty
+ * @param dependencies artifact ids a build file declares ({@code build.gradle(.kts)}, {@code pom.xml}),
+ *                   otherwise empty
  */
 public record SourceFile(String root, String path, String module, long size, long mtime, String sha256,
                          String packageName, List<String> imports, List<TypeDecl> types, String parseError,
-                         Map<String, String> properties, List<String> tables) {
+                         Map<String, String> properties, List<String> tables, List<String> dependencies) {
 
     public boolean isJava() {
         return path.endsWith(".java");

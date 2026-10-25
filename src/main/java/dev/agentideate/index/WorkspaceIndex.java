@@ -27,7 +27,7 @@ import java.util.Map;
 public final class WorkspaceIndex {
 
     /** Bumped whenever the shape of {@link SourceFile} changes, so an old cache is rebuilt, not misread. */
-    static final int CACHE_VERSION = 2;
+    static final int CACHE_VERSION = 3;
 
     /** Files above this size are listed but not parsed: generated sources, mostly. */
     static final long MAX_PARSE_BYTES = 2 * 1024 * 1024;
@@ -97,7 +97,7 @@ public final class WorkspaceIndex {
                 if (cached != null && hash.equals(cached.sha256()) && cached.module().equals(module)) {
                     next.put(key, new SourceFile(cached.root(), cached.path(), module, sf.size(), sf.mtime(),
                             hash, cached.packageName(), cached.imports(), cached.types(), cached.parseError(),
-                            cached.properties(), cached.tables()));
+                            cached.properties(), cached.tables(), cached.dependencies()));
                     continue;
                 }
                 next.put(key, build(root.name(), sf, module, hash, bytes));
@@ -147,18 +147,19 @@ public final class WorkspaceIndex {
         if (sf.size() > MAX_PARSE_BYTES) {
             return new SourceFile(rootName, rel, module, sf.size(), sf.mtime(), hash, "", List.of(), List.of(),
                     rel.endsWith(".java") ? "skipped: larger than " + (MAX_PARSE_BYTES / 1024) + " KB" : null,
-                    Map.of(), List.of());
+                    Map.of(), List.of(), List.of());
         }
         String text = new String(bytes, StandardCharsets.UTF_8);
         if (!rel.endsWith(".java")) {
             Map<String, String> props = ConfigFileParser.isSpringConfig(rel) ? ConfigFileParser.properties(rel, text) : Map.of();
             List<String> tables = ConfigFileParser.isMigration(rel) ? ConfigFileParser.tables(rel, text) : List.of();
+            List<String> deps = ConfigFileParser.isBuildFile(rel) ? ConfigFileParser.dependencies(rel, text) : List.of();
             return new SourceFile(rootName, rel, module, sf.size(), sf.mtime(), hash, "", List.of(), List.of(), null,
-                    props, tables);
+                    props, tables, deps);
         }
         JavaFileParser.Parsed parsed = parser.parse(text);
         return new SourceFile(rootName, rel, module, sf.size(), sf.mtime(), hash,
-                parsed.packageName(), parsed.imports(), parsed.types(), parsed.error(), Map.of(), List.of());
+                parsed.packageName(), parsed.imports(), parsed.types(), parsed.error(), Map.of(), List.of(), List.of());
     }
 
     private void loadCache() {

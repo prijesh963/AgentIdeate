@@ -136,7 +136,7 @@ class McpServerTest {
                 throw new RuntimeException(e);
             }
         }).toList());
-        assertTrue(msgs.get(2).at("/result/content/0/text").asText().contains("3 Spring Boot services"));
+        assertTrue(msgs.get(2).at("/result/content/0/text").asText().contains("4 Spring Boot services"));
     }
 
     @Test

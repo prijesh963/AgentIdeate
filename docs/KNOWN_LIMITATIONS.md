@@ -17,9 +17,11 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
    defined in a superclass is not shown.
 5. **Calls inside lambdas are attributed to the enclosing method,** which is usually what is wanted
    but loses the lambda's own scope (a lambda parameter shadowing a field is not modelled).
-6. **Only Spring config and migrations are read among non-Java files.** `application*.yml|yaml|
-   properties` and `bootstrap*` become flat keys; `.sql` files and Liquibase XML changelogs give the
-   tables they create or alter. Build files and other XML are listed by path only.
+6. **Only Spring config, migrations and build-file dependencies are read among non-Java files.**
+   `application*.yml|yaml|properties` and `bootstrap*` become flat keys; `.sql` files and Liquibase
+   XML changelogs give the tables they create or alter; `build.gradle(.kts)` and `pom.xml` give the
+   artifact ids they name (quoted `group:artifact` coordinates, `<artifactId>`). Version catalogs,
+   plugins and other XML are not interpreted.
 7. **The YAML reader is a subset.** Nested maps, scalars, quotes, comments, lists (both indent
    styles), lists of maps, flow lists and block scalars. Anchors/aliases (`&x`, `*x`), merge keys and
    flow maps (`{a: 1}`) are not interpreted. With several `---` documents (profiles) the first value
@@ -53,18 +55,34 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
    `sendAndReceive` on `KafkaTemplate`, `ReactiveKafkaProducerTemplate`, `KafkaOperations`,
    `RabbitTemplate`, `AmqpTemplate`, `RabbitOperations`, `RabbitMessagingTemplate`, `JmsTemplate`,
    `JmsMessagingTemplate`, `JmsOperations`, called on a field, parameter or local of that type.
-   Not recognized: Spring Cloud Stream (`StreamBridge`, functional bindings), the plain Kafka client
-   (`KafkaProducer`), Camel routes, Spring Integration flows, and calls through a wrapper class the
-   index cannot see into.
+   Not recognized: the plain Kafka client (`KafkaProducer`), Camel routes, Spring Integration flows,
+   and calls through a wrapper class the index cannot see into.
 2. **Recognized consumers:** `@KafkaListener` (`topics`, `topicPattern`; class-level with
    `@KafkaHandler`), `@RabbitListener(queues)`, `@JmsListener(destination)`. Not recognized:
    `@RabbitListener(bindings = @QueueBinding(...))`, programmatic listener containers.
-3. **A topic name that is a runtime value** (a method parameter, a computed string) is shown as
+3. **Spring Cloud Stream, functional style, is recognized:** `@Bean` methods returning
+   `Function`/`Consumer`/`Supplier` (and `@Component` classes implementing them), selected by
+   `spring.cloud.function.definition` (including `a|b` composition), with bindings renamed through
+   `spring.cloud.stream.function.bindings.*`, destinations and groups from
+   `spring.cloud.stream.bindings.*`, and `StreamBridge.send`. The binder (Kafka or RabbitMQ) comes
+   from the binding's `binder`, `default-binder`/`binders.*.type`, a binder dependency in the build
+   file, or binder-specific config keys; when none of those decide it, the binding is labelled
+   `stream` and only matches other Stream bindings. Not covered:
+   - the annotation model (`@EnableBinding`, `@StreamListener`, `@Input`/`@Output`), removed in
+     Spring Cloud Stream 4;
+   - functions with several inputs or outputs (`Tuple`/`Flux[]`, bindings `-in-1`, `-out-1`),
+     including multi-output Kafka Streams processors: only index 0 is read;
+   - `spring.cloud.function.routing-expression` and the routing function;
+   - binder dependencies declared through a version catalog (`libs.x.y`) or a BOM-only parent:
+     use `default-binder` or binder config keys, or the binding shows as `stream`;
+   - on the RabbitMQ binder, the queue a group creates (`<destination>.<group>`) is not matched to
+     a plain `@RabbitListener` on that queue.
+4. **A topic name that is a runtime value** (a method parameter, a computed string) is shown as
    `<name>`, listed under "Channel not known statically", and matched to nothing.
    `kafkaTemplate.send(new ProducerRecord<>(...))` is listed the same way.
-4. **RabbitMQ is matched by routing key = queue name.** Exchange bindings are not read, so a
+5. **RabbitMQ is matched by routing key = queue name.** Exchange bindings are not read, so a
    producer whose routing key differs from the queue name it ends up in is not linked to it.
-5. **Brokers are not compared.** Two services using the same topic name on different Kafka
+6. **Brokers are not compared.** Two services using the same topic name on different Kafka
    clusters are still shown as producer and consumer of one channel.
 
 ## Data

@@ -54,7 +54,8 @@ final class MessagingMapTool implements Tool {
             }
             byChannel.computeIfAbsent(m.system() + " " + m.channel(), k -> new ArrayList<>()).add(m);
         }
-        if (byChannel.isEmpty() && unresolved.isEmpty()) {
+        // with a filter, unresolved channels are not shown, so they cannot make the answer non-empty
+        if (byChannel.isEmpty() && (filter != null || unresolved.isEmpty())) {
             out.line(filter == null
                     ? "Not found: no Kafka, RabbitMQ or JMS producers or consumers in this workspace."
                     : "Not found: no channel containing \"" + filter + "\".");
@@ -85,10 +86,11 @@ final class MessagingMapTool implements Tool {
         }
         if (!unresolved.isEmpty() && filter == null) {
             out.blank();
-            out.line("Channel not known statically (" + unresolved.size() + "): a runtime value or an unresolved placeholder");
+            out.line("Channel not known statically (" + unresolved.size() + "): a runtime value, an unresolved placeholder, or an unbound function");
             for (Message m : unresolved) {
                 out.line("  " + m.system() + " " + (m.producer() ? "producer" : "consumer") + " " + m.channel() + "  "
-                        + m.owner().name() + "#" + m.method().name() + "  " + out.ref(m.owner().file(), m.line()));
+                        + m.owner().name() + "#" + m.method().name() + "  " + out.ref(m.owner().file(), m.line())
+                        + (m.detail() == null ? "" : "  [" + m.detail() + "]"));
             }
         }
     }

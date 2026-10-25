@@ -238,7 +238,7 @@ plan and goes through the same gate.
 | | Scope | Status |
 |---|---|---|
 | **M1** | Gradle skeleton, MCP stdio server with roots, sample microservices workspace, incremental Java index, graph (beans, routes, injection, interface dispatch, Feign hops), `repo_overview`, `locate`, `endpoint_flow`, savings footer and ledger | **done** |
-| **M2** | Spring config reading (YAML subset, properties) with placeholder resolution; Kafka/RabbitMQ/JMS producer-consumer map across services; entity → table/collection, repositories, migrations, datasources; reverse index; `messaging_map`, `data_map`, `impact_of`; Kafka hops in `endpoint_flow` | **done** |
+| **M2** | Spring config reading (YAML subset, properties) with placeholder resolution; Kafka/RabbitMQ/JMS and Spring Cloud Stream (functional) producer-consumer map across services; build-file dependencies; entity → table/collection, repositories, migrations, datasources; reverse index; `messaging_map`, `data_map`, `impact_of`; Kafka hops in `endpoint_flow` | **done** |
 | M3 | Workflow 1 threads (stateful Q&A, delta answers), `slice_for_task`, build-log compression | |
 | M4 | Benchmark harness on the sample, ledger report, release workflow (jar + checksum + SBOM), SECURITY fact sheet finalized | |
 | M5 | Workflow 2: plan contract, validation, decision ledger, approval page | |
