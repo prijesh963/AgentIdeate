@@ -8,6 +8,7 @@ import dev.agentideate.implement.TerminalImplement;
 import dev.agentideate.mcp.McpServer;
 import dev.agentideate.plan.TerminalApproval;
 import dev.agentideate.report.LedgerReport;
+import dev.agentideate.testing.TestAttempts;
 import dev.agentideate.tools.ToolRegistry;
 import dev.agentideate.workspace.WorkspaceService;
 
@@ -46,6 +47,9 @@ public final class Main {
               java -jar agentideate.jar approve <id> [version]                     approve a plan here, in the terminal
               java -jar agentideate.jar implement <id> [--no-compile]              write an approved plan (asks first)
               java -jar agentideate.jar rollback <run | plan id>                   undo an implementation run
+              java -jar agentideate.jar review <plan id>                           check an implemented plan against its approval
+              java -jar agentideate.jar testpack <plan id | Class | Class#method>  what is needed to write its unit tests
+              java -jar agentideate.jar tests <plan id | TestClass,...> [--reset]  run only those tests (--reset: allow 3 more failed runs)
               java -jar agentideate.jar call <tool> '<json arguments>'             run any tool (scripting, debugging)
 
             Serving MCP, --approval terminal (or AGENTIDEATE_APPROVAL=terminal) makes the terminal the only place
@@ -67,6 +71,7 @@ public final class Main {
         int days = 7;
         boolean allWorkspaces = false;
         boolean noCompile = false;
+        boolean reset = false;
         String approval = System.getenv("AGENTIDEATE_APPROVAL");
         for (int i = 0; i < argv.length; i++) {
             String a = argv[i];
@@ -81,6 +86,8 @@ public final class Main {
                 allWorkspaces = true;
             } else if (a.equals("--no-compile")) {
                 noCompile = true;
+            } else if (a.equals("--reset")) {
+                reset = true;
             } else if (a.equals("--approval") && i + 1 < argv.length) {
                 approval = argv[++i];
             } else if (a.equals("--repo") || a.equals("-r")) {
@@ -107,7 +114,7 @@ public final class Main {
 
         String command = positional.isEmpty() ? "serve" : positional.get(0);
         try {
-            return dispatch(command, positional, repos, days, allWorkspaces, noCompile, workspaces, registry, home, stdin, stdout, stderr);
+            return dispatch(command, positional, repos, days, allWorkspaces, noCompile, reset, workspaces, registry, home, stdin, stdout, stderr);
         } catch (WorkspaceService.NoWorkspaceException e) {
             stderr.println(e.getMessage());
             return 1;
@@ -115,7 +122,7 @@ public final class Main {
     }
 
     private static int dispatch(String command, List<String> positional, List<Path> repos, int days, boolean allWorkspaces,
-                                boolean noCompile, WorkspaceService workspaces, ToolRegistry registry, AppHome home, InputStream stdin,
+                                boolean noCompile, boolean reset, WorkspaceService workspaces, ToolRegistry registry, AppHome home, InputStream stdin,
                                 PrintStream stdout, PrintStream stderr) throws IOException {
         ObjectNode args = new ObjectMapper().createObjectNode();
         switch (command) {
@@ -272,6 +279,40 @@ public final class Main {
                 }
                 return TerminalImplement.rollback(workspaces.snapshot(null), registry.runner(), positional.get(1), stdout, stderr,
                         System.currentTimeMillis());
+            }
+            case "review" -> {
+                if (positional.size() < 2) {
+                    stderr.println("usage: review <plan id>");
+                    return 2;
+                }
+                args.put("plan", positional.get(1));
+                return print(registry.call("plan_review", args), stdout, stderr);
+            }
+            case "testpack" -> {
+                if (positional.size() < 2) {
+                    stderr.println("usage: testpack <plan id | Class | Class#method>");
+                    return 2;
+                }
+                args.put(positional.get(1).matches("p\\d+") ? "plan" : "target", positional.get(1));
+                return print(registry.call("test_pack", args), stdout, stderr);
+            }
+            case "tests" -> {
+                if (positional.size() < 2) {
+                    stderr.println("usage: tests <plan id | TestClass,...> [--reset]");
+                    return 2;
+                }
+                boolean isPlan = positional.get(1).matches("p\\d+");
+                if (reset) {
+                    if (!isPlan) {
+                        stderr.println("--reset takes a plan id");
+                        return 2;
+                    }
+                    TestAttempts.reset(workspaces.snapshot(null).stateDir(), positional.get(1));
+                    stdout.println("Reset: " + positional.get(1) + " may fail its tests " + TestAttempts.LIMIT + " more times.");
+                    return 0;
+                }
+                args.put(isPlan ? "plan" : "tests", positional.get(1));
+                return print(registry.call("test_run", args), stdout, stderr);
             }
             case "call" -> {
                 if (positional.size() < 2) {

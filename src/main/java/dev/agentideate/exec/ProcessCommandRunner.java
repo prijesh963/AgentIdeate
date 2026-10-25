@@ -6,15 +6,18 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 /**
  * The only way agentideate runs a process. No shell is involved, and a command must match the
- * allowlist exactly: read-only {@code git status}/{@code git rev-parse}, Gradle compile tasks,
- * Maven compile goals. Output is capped, and a command that runs past its timeout is killed.
+ * allowlist exactly: read-only {@code git status}/{@code git rev-parse}, Gradle compile and test
+ * tasks, Maven compile and test goals, tests filtered only by class name. Output is capped, and a
+ * command that runs past its timeout is killed.
  */
 public final class ProcessCommandRunner implements CommandRunner {
 
@@ -23,8 +26,10 @@ public final class ProcessCommandRunner implements CommandRunner {
     private static final Set<String> GIT_SUBCOMMANDS = Set.of("status", "rev-parse");
     private static final Set<String> GIT_FLAGS = Set.of("--porcelain", "--porcelain=v1", "--untracked-files=all",
             "--show-prefix", "--show-toplevel", "--is-inside-work-tree", "--");
-    private static final Set<String> GRADLE_ARGS = Set.of("compileJava", "compileTestJava", "--console=plain", "-q", "--offline");
-    private static final Set<String> MAVEN_ARGS = Set.of("compile", "test-compile", "-q", "-B", "-o");
+    private static final Set<String> GRADLE_ARGS = Set.of("compileJava", "compileTestJava", "test", "--console=plain", "-q", "--offline");
+    private static final Set<String> MAVEN_ARGS = Set.of("compile", "test-compile", "test", "-q", "-B", "-o");
+    /** A test filter: class names, optionally with a method or wildcard; nothing a shell or a build could read as more. */
+    private static final Pattern TEST_FILTER = Pattern.compile("[A-Za-z_$][\\w.$*#]*");
 
     @Override
     public Result run(List<String> command, Path workDir, Duration timeout) throws IOException {
@@ -77,8 +82,9 @@ public final class ProcessCommandRunner implements CommandRunner {
 
     /**
      * Whether a command may run: {@code git [-C dir] status|rev-parse} with read-only flags (and
-     * paths after {@code --}); a Gradle wrapper or {@code gradle} with {@code -p dir} and compile
-     * tasks; a Maven wrapper or {@code mvn} with {@code -f pom} and compile goals. Nothing else.
+     * paths after {@code --}); a Gradle wrapper or {@code gradle} with {@code -p dir}, compile or
+     * test tasks and {@code --tests <filter>}; a Maven wrapper or {@code mvn} with {@code -f pom},
+     * compile or test goals and {@code -Dtest=<filters>}. A filter is a class name pattern. Nothing else.
      */
     public static boolean allowed(List<String> command) {
         if (command == null || command.isEmpty()) {
@@ -88,8 +94,8 @@ public final class ProcessCommandRunner implements CommandRunner {
         List<String> args = command.subList(1, command.size());
         return switch (exe) {
             case "git", "git.exe" -> gitAllowed(args);
-            case "gradlew", "gradlew.bat", "gradle", "gradle.bat" -> withDirFlag(args, "-p", GRADLE_ARGS);
-            case "mvnw", "mvnw.cmd", "mvn", "mvn.cmd" -> withDirFlag(args, "-f", MAVEN_ARGS);
+            case "gradlew", "gradlew.bat", "gradle", "gradle.bat" -> withDirFlag(args, "-p", GRADLE_ARGS, true);
+            case "mvnw", "mvnw.cmd", "mvn", "mvn.cmd" -> withDirFlag(args, "-f", MAVEN_ARGS, false);
             default -> false;
         };
     }
@@ -116,12 +122,17 @@ public final class ProcessCommandRunner implements CommandRunner {
         return true;
     }
 
-    private static boolean withDirFlag(List<String> args, String dirFlag, Set<String> allowedArgs) {
+    private static boolean withDirFlag(List<String> args, String dirFlag, Set<String> allowedArgs, boolean gradle) {
         boolean anyTask = false;
         for (int i = 0; i < args.size(); i++) {
             String a = args.get(i);
             if (a.equals(dirFlag) && i + 1 < args.size()) {
                 i++;
+            } else if (gradle && a.equals("--tests") && i + 1 < args.size() && TEST_FILTER.matcher(args.get(i + 1)).matches()) {
+                i++;
+            } else if (!gradle && a.startsWith("-Dtest=") && Arrays.stream(a.substring(7).split(","))
+                    .allMatch(t -> TEST_FILTER.matcher(t).matches())) {
+                // a Surefire test filter
             } else if (allowedArgs.contains(a)) {
                 anyTask |= !a.startsWith("-");
             } else {

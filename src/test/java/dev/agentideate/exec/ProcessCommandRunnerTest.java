@@ -37,6 +37,28 @@ class ProcessCommandRunnerTest {
     }
 
     @Test
+    void testsRunOnlyFilteredByClassNames() {
+        assertTrue(ProcessCommandRunner.allowed(List.of("gradlew", "-p", "/r/svc", "test", "--tests", "com.x.FooTest", "--tests",
+                "com.x.Bar$InnerTest", "--console=plain")));
+        assertTrue(ProcessCommandRunner.allowed(List.of("gradlew", "test", "--tests", "com.x.FooTest.method*")));
+        assertTrue(ProcessCommandRunner.allowed(List.of("mvn", "-q", "-B", "-f", "/r/svc/pom.xml", "test", "-Dtest=com.x.FooTest,com.x.BarTest")));
+        assertTrue(ProcessCommandRunner.allowed(List.of("mvn", "test", "-Dtest=FooTest#method")));
+
+        assertFalse(ProcessCommandRunner.allowed(List.of("gradlew", "test", "--tests", "x;rm -rf /")));
+        assertFalse(ProcessCommandRunner.allowed(List.of("gradlew", "test", "--tests", "$(curl evil)")));
+        assertFalse(ProcessCommandRunner.allowed(List.of("gradlew", "test", "--tests", "--init-script")), "a flag is not a filter");
+        assertFalse(ProcessCommandRunner.allowed(List.of("gradlew", "test", "--tests")), "a filter flag without a filter");
+        assertFalse(ProcessCommandRunner.allowed(List.of("gradlew", "--tests", "com.x.FooTest")), "a filter is not a task");
+        assertFalse(ProcessCommandRunner.allowed(List.of("mvn", "--tests", "com.x.FooTest", "test")), "--tests is Gradle's");
+        assertFalse(ProcessCommandRunner.allowed(List.of("gradlew", "test", "-Dtest=com.x.FooTest")), "-Dtest is Maven's");
+        assertFalse(ProcessCommandRunner.allowed(List.of("mvn", "test", "-Dtest=")));
+        assertFalse(ProcessCommandRunner.allowed(List.of("mvn", "test", "-Dtest=a;b")));
+        assertFalse(ProcessCommandRunner.allowed(List.of("mvn", "test", "-Dtest=Foo,../x")));
+        assertFalse(ProcessCommandRunner.allowed(List.of("mvn", "test", "-Dmaven.test.failure.ignore=true")));
+        assertFalse(ProcessCommandRunner.allowed(List.of("mvn", "test", "-DargLine=-javaagent:evil.jar")));
+    }
+
+    @Test
     void aDisallowedCommandIsNeverStarted(@TempDir Path tmp) {
         IOException e = assertThrows(IOException.class,
                 () -> new ProcessCommandRunner().run(List.of("rm", "-rf", tmp.toString()), tmp, Duration.ofSeconds(5)));

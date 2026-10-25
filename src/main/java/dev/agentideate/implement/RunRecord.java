@@ -1,7 +1,9 @@
 package dev.agentideate.implement;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * One application of an approved plan: what was written where, with the hashes needed to verify
@@ -34,6 +36,8 @@ public final class RunRecord {
     public List<String> createdDirs = new ArrayList<>();
     public List<String> verify = new ArrayList<>();
     public List<String> outsidePlan = new ArrayList<>();
+    /** Per root, what git saw changed before the run (absent when git could not tell): review leaves these out. */
+    public Map<String, List<String>> gitBefore = new LinkedHashMap<>();
     public String compileStatus;
     public String compileCommand;
     public List<String> compileDigest = new ArrayList<>();

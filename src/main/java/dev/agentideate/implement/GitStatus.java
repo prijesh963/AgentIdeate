@@ -14,12 +14,12 @@ import java.util.Set;
  * besides the plan's own files changed while it was applied. {@code null} when the root is not in
  * a git work tree or git cannot run, so the check is skipped rather than guessed.
  */
-final class GitStatus {
+public final class GitStatus {
 
     private GitStatus() {
     }
 
-    static Set<String> changed(CommandRunner runner, Path root) {
+    public static Set<String> changed(CommandRunner runner, Path root) {
         try {
             CommandRunner.Result inside = runner.run(List.of("git", "-C", root.toString(), "rev-parse", "--is-inside-work-tree"),
                     root, Duration.ofSeconds(20));

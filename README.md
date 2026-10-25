@@ -109,6 +109,9 @@ passes all of them. Or pin them in `mcp.json`:
 | `plan_approve` | (after review) | an Approve / Request changes form in the Copilot chat; your click, not the agent's |
 | `plan_implement` | "Implement p1" | after your *Start* in the chat: the approved plan written exactly, every file verified, the build compiled; rolled back on any failure |
 | `plan_rollback` | "Undo that" | the run undone from its backups, never overwriting a file edited since |
+| `plan_review` | "Review p1" | whether the project holds exactly the approved changes and nothing else (CONFORMS / DEVIATES / INCOMPLETE), then the changed code with its callers and tests to review; findings are checked against real lines |
+| `test_pack` | "Write unit tests for p1" | each changed method's code, what to mock, the test class to extend (or where a new one goes), your team's test conventions and an existing test to copy |
+| `test_run` | "Run the tests for p1" | only the affected test classes, run with your build; failures with `file:line`; stops after 3 failed runs |
 
 ### Plans: nothing is written until you approve
 
@@ -164,6 +167,24 @@ Copilot's confirmation, or `java -jar agentideate.jar implement p1` in terminal 
 
 Set `AGENTIDEATE_COMPILE=off` on machines that cannot build (or pass `compile: false`).
 
+### Review and tests
+
+`plan_review p1` checks the project against the approved plan without any judgement: every file of
+the run must still be exactly what was written, every approved change must be there, and git must
+show nothing else changed since the run started (changes you had before it are not counted). The
+verdict is **CONFORMS**, **DEVIATES** (with what) or **INCOMPLETE**. The answer also hands the agent
+the changed code as it is now, with the callers and tests of each changed method, for a logic
+review; the agent sends its findings back with `file` and `line`, and a finding that points at a
+line that does not exist is rejected, not recorded.
+
+`test_pack p1` gives the agent what it needs to write unit tests in one go: the changed methods,
+the collaborators to mock, the existing test class (or where a new one goes), and how your team
+writes tests (JUnit 5 or 4, Mockito with `@ExtendWith`, AssertJ, Spring slices, Testcontainers),
+with one of your own tests as the example. The tests are written as a plan, so you approve them
+too. `test_run p1` then runs only those test classes (`--tests` / `-Dtest`) with your build and reads
+the reports of that run. After 3 failed runs for a plan it stops and asks the agent to report; you
+allow more with `java -jar agentideate.jar tests p1 --reset`.
+
 ### It remembers the conversation
 
 Answers belong to threads. A question related to the last few (sharing files or words, on the same
@@ -190,6 +211,9 @@ java -jar agentideate.jar plans                                   # list plans
 java -jar agentideate.jar approve p1                              # read the plan, approve it in the terminal
 java -jar agentideate.jar implement p1                            # write it (asks y/N), verify, compile
 java -jar agentideate.jar rollback r1                             # undo that run
+java -jar agentideate.jar review p1                               # check what was written against the approval
+java -jar agentideate.jar testpack OrderServiceImpl#placeOrder    # what is needed to test it
+java -jar agentideate.jar tests p1                                # run only p1's tests (--reset: allow 3 more failed runs)
 ```
 
 Gaps are listed in [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md). Where agentideate is

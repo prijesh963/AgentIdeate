@@ -35,6 +35,10 @@ source code to answer structural questions about the open project.
     The 30 most recent threads are kept.
   - `plans/p*.json`: plans the agent proposed (the code it quotes and proposes), their versions,
     decisions and approvals.
+  - `runs/`, `audit.jsonl`: implementation runs with backups, and the append-only audit log (writes,
+    undos, reviews).
+  - `reviews/p*.json`: review verdicts and the findings the agent recorded (file, line, text).
+  - `tests/p*.json`: the number of failed test runs per plan, with a one-line history.
   - `client.json` (in the home folder itself): the name, version and capabilities of the last MCP
     client that started agentideate, so `setup` can report them.
 - **In the project, only an approved plan, and only after it is started.** Asking questions,
@@ -65,13 +69,16 @@ a Start from the developer, given the same way (chat form, tool confirmation, or
   approval page on `127.0.0.1` only.)
 - **No AI.** It never calls a model or any external service; answers are computed from source.
 - **No telemetry.** Nothing leaves the machine.
-- **No command but an allowlisted few.** Processes are started without a shell, only when an
-  approved plan is implemented, and only these, matched exactly: `git status` / `git rev-parse`
-  with read-only flags (to see what changed), the module's Gradle build with `compileJava
-  compileTestJava`, or its Maven build with `test-compile`. Anything else is refused before it starts.
-  Each has a timeout and capped output. The compile check can be turned off (`AGENTIDEATE_COMPILE=off`).
-  Note that a compile runs the project's own build scripts, as building it in the IDE would. (Later versions will run an
-  allowlisted build command, `./gradlew compileJava`, with a timeout, after approval.)
+- **No command but an allowlisted few.** Processes are started without a shell, and only these,
+  matched exactly: `git status` / `git rev-parse` with read-only flags (to see what changed); the
+  module's Gradle build with `compileJava compileTestJava`, or `test` filtered with `--tests <class>`;
+  its Maven build with `test-compile`, or `test` filtered with `-Dtest=<classes>`. A test filter must
+  be a plain class name pattern (letters, digits, `.`, `$`, `*`, `#`); anything else, including any
+  other flag or property, is refused before it starts. Each has a timeout and capped output. Builds
+  run when an approved plan is implemented (the compile check, which `AGENTIDEATE_COMPILE=off` turns
+  off) and when `test_run` is called, which Copilot confirms because it is not read-only. A build
+  runs the project's own build scripts and a test run the project's tests, as running them in the
+  IDE would.
 
 ## What is inside the jar
 

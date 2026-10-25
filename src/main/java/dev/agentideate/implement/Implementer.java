@@ -2,6 +2,7 @@ package dev.agentideate.implement;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.agentideate.exec.BuildTool;
 import dev.agentideate.exec.CommandRunner;
 import dev.agentideate.plan.Plan;
 import dev.agentideate.plan.PlanChange;
@@ -142,6 +143,11 @@ public final class Implementer {
 
         Map<String, Set<String>> gitBefore = gitStatus(targets);
         RunRecord run = new RunRecord();
+        gitBefore.forEach((root, paths) -> {
+            if (paths != null) {
+                run.gitBefore.put(root, new ArrayList<>(paths));
+            }
+        });
         run.id = nextRunId();
         run.plan = plan.id;
         run.version = v.number;
@@ -403,13 +409,7 @@ public final class Implementer {
     }
 
     private Path moduleDir(Target t) {
-        Path root = t.root().path();
-        for (Path d = t.absolute().getParent(); d != null && d.startsWith(root); d = d.getParent()) {
-            if (Files.exists(d.resolve("build.gradle")) || Files.exists(d.resolve("build.gradle.kts")) || Files.exists(d.resolve("pom.xml"))) {
-                return d;
-            }
-        }
-        return null;
+        return BuildTool.moduleOf(t.root().path(), t.absolute());
     }
 
     private Workspace.Root rootOf(Path p) {

@@ -185,13 +185,42 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
    back too; fix it first.
 4. **"Outside the plan" is what git sees change during the run.** Edits made before the run by
    Copilot's own file tools (bypassing agentideate) are caught by the approval hash gate only for
-   files the plan touches; review (Workflow 4) will compare the whole working tree with the plan.
+   files the plan touches; `plan_review` compares the whole working tree with the plan afterwards.
    Without git, the check is skipped and the report says so.
 5. **Files must be UTF-8.** A file in another encoding is refused rather than rewritten.
 6. **Undo needs the run's backups,** under `~/.agentideate`; deleting that folder makes a run
    impossible to undo (git still has the history if the work was committed).
 7. **One plan at a time per file.** Two approved plans touching the same file: implementing one
    changes the file, so the other's hash gate stops it until it is revised.
+
+## Review
+
+1. **Conformance is per run.** Review checks the plan's applied run. Changes made between approval
+   and the run by Copilot's own file tools are caught by the approval hash gate only for the plan's
+   files; anything else git already showed before the run is left out as the developer's own.
+2. **"Not in the plan" cannot tell who changed a file** after the run: the developer or the agent.
+   It lists them; the developer decides. Without git it is not checked, and says so.
+3. **A change that only removes lines** has no new text to locate, so it gets no region or methods
+   in the review pack (its conformance is still checked by hash).
+4. **Findings are checked for a real file and line, not for being right.** The logic review is the
+   agent's; agentideate only guarantees that what it cites exists.
+
+## Tests
+
+1. **Mocks are injected collaborators the method calls.** Static calls, objects created inside the
+   method, and collaborators reached through another object are not listed.
+2. **Conventions come from imports and annotations** of the module's tests (or its build's test
+   dependencies). A custom base test class or meta-annotation is not followed into.
+3. **Tests of a change are found by naming and references** (`<Class>Test/Tests/IT`, fields, calls,
+   imports). A test that reaches the class only through Spring context wiring is missed; pass its
+   name to `test_run tests=`.
+4. **Only fresh JUnit reports are read**, by file time. A build that runs no matching test writes no
+   report and is reported as such. Only failing tests, compile errors and timeouts count as failed
+   runs; a build that stops for another reason (dependencies it cannot download, build setup) is
+   reported but not counted, since changing the code would not fix it.
+5. **Running tests runs the project's code and writes its build output** (`build/`, `target/`), as
+   running them in the IDE would. `test_run` is marked as not read-only so Copilot confirms it.
+6. **No coverage.** JaCoCo coverage of the changed lines is not measured.
 
 ## Workspace
 
@@ -220,7 +249,7 @@ the hard way. Each answer also states its own blind spots (for example the "Not 
    opened all of them, or might have opened more. M4's benchmark compares real agent runs with and
    without agentideate.
 3. **The tool definitions are a fixed cost.** Copilot sends every MCP tool's name, description and
-   argument schema with each agent request: about 2,000 tokens for agentideate's 14 tools. One
+   argument schema with each agent request: about 2,400 tokens for agentideate's 17 tools (2,000 before review and tests were added). One
    avoided file read usually covers it; descriptions are kept short for this reason. If credits are
    counted per request rather than per token, it adds no requests.
 4. **The overview cites only the files it names** (controllers, applications, config), although it
